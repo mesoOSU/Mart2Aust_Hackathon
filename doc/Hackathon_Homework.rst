@@ -71,13 +71,12 @@ activating a new environment::
 Add the Spyder and Jupyter IDEs to this conda environment::
 
 	conda install Jupyter
-	conda install Spyter
+	conda install Spyder
 
 then cd to the repository and do an editable pip installation::
 
 	cd /Directory/where/Mart2Aust_Hackathon/is
-	cd orix
-	pip install –editable .
+	pip install –-editable .
 
 At this point, you should be able to open up Spyder (or whatever python 
 IDE you use) and import orix from anywhere.
