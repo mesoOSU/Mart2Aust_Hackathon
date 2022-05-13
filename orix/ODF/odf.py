@@ -17,7 +17,7 @@ class ODF:
 # ============================ #
 #          Initialize          #
 # ============================ #
-    def __init__(self, orientations, sigma=1, bin_number=100, method="fast")
+    def __init__(self, orientations, sigma=1, bin_count=100, method="fast"):
         '''
         Generates ODF over rotations, given orientations. Only "Fast" method is
         supported, currently.
@@ -30,24 +30,24 @@ class ODF:
         --------------
         orientations : np.array
             This is an array of orientations, in quaternion space.
-    
+
         rotations : np.array
             This is an array of the rotations with some pre-defined resolution,
             also in quaternion space.
-    
+
         bin_number : int
             Number of bins in one dimension (for a total of three, X, Y, and Z)
             we'd like to create the histogram over. (MUST BE NON-NEGATIVE)
-    
+
         sigma : float
             Variance of the Gaussian kernel when we blur the histogram. (MUST BE
             GREATER THAN OR EQUAL TO ZERO))
-    
+
         ***method*** : str
             "fast" ONLY for now, eventually "accurate". WARNING:
             Currently only "fast" (AND INACCURATE) ODF generation is supported.
-    
-    
+
+
         Outputs:
         --------------
         odf : np.array
@@ -65,12 +65,12 @@ class ODF:
         ori_xyz = R.from_quat(orientations.data).as_mrp()
 
         hist = histogramdd(
-            ori_xyz,
+            ori_xyz,bin_count,
             range = [[-1, 1], [-1, 1], [-1, 1]],
             )[0]
 
         self.block = gaussian_filter(hist, sigma=sigma)
-        self.bins = bin_number
+        self.bins = bin_count
 
 
 # ============================ #
@@ -79,6 +79,6 @@ class ODF:
 
     def query(self, input_oris):
         mrp_querys = R.from_quat(input_oris.data).as_mrp()
-        indices = ((((ori_xyz+1)/2)*self.bins).astype('uint'))
-        likelyhood = [block[ind[0],ind[1],ind[2]] for ind in indices]
+        indices = ((((input_oris+1)/2)*self.bins).astype('uint'))
+        likelyhood = [self.block[ind[0],ind[1],ind[2]] for ind in indices]
         return(likelyhood)
