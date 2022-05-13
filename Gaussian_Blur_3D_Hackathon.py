@@ -14,7 +14,6 @@ def generate_grid():
     x = np.arange(-1, 1, 0.05)  # coordinate arrays -- make sure they contain 0!
     y = np.arange(-1, 1, 0.05)
     z = np.arange(-1, 1, 0.05)
-    # xx, yy, zz = np.meshgrid(x, y, z)
 
     return x.reshape(x.shape[0],1), y.reshape(y.shape[0],1), z.reshape(z.shape[0],1)
 
@@ -30,6 +29,7 @@ def gaussian_blur(xx, yy, zz, sigma = 1):
 # Generation of kernel onto grid
 def generate_kernel(fx, fy, fz, sigma=1):
     xx,yy,zz = np.meshgrid(fx, fy, fz)
+    
     return np.exp(- (xx ** 2 + yy ** 2 + zz ** 2) / (2 * sigma ** 2))
 
 #Main Code- Testing
