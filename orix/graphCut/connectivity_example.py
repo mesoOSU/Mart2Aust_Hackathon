@@ -100,7 +100,7 @@ g.add_grid_tedges(nodeids, img, 1-img)
 #%% plot graph cut
 sgm = g.get_grid_segments(nodeids)
 img2 = np.int_(np.logical_not(sgm))
-from matplotlib import pyplot as ppl
+# from matplotlib import pyplot as ppl
 # ppl.figure()
 # ppl.imshow(img2)
 # ppl.show()
@@ -131,7 +131,7 @@ connectivity2 = connectivity[:, ~out_plane_loc] # adjacency matrix without sourc
 o1 = xmap2.rotations[connectivity2[0,:]] # orientation of node u
 o2 = xmap2.rotations[connectivity2[1,:]] # orientation of node v
 m = Misorientation([o1.data, o2.data]) # misorientations between every u and v
-m.symmetry = (symmetry.Oh, symmetry.Oh) # Oh is symmetry (need to un-hard code)
+m.symmetry = (symmetry.Oh, symmetry.Oh) # 'Oh' is symmetry (need to un-hard code)
 m2 = m.map_into_symmetry_reduced_zone() 
 
 misori_angles = m2.angle
@@ -143,11 +143,36 @@ misori_angles = m2.angle
 # This method preserves the out of plane weights already assigned, reassigning the in-plane weights
 CC = sp.csr_array(adj_arr)
 CC[connectivity2[0,:],connectivity2[1,:]] = misori_angles[0,:] #assign misorientations as new weights to original nodes
-
+                                                                # not sure why it gives two rows for misori
 # Return sparse matrix to networkx format
 newC = nx.from_scipy_sparse_array(CC) # new adjacency array with misori weights
 from full_from_diag import full_from_diag
-new_newC = full_from_diag(sp.triu(CC))  
+new_newC = full_from_diag(sp.triu(CC))
+
+
+#%% populate network through pymaxflow
+mister = maxflow.GraphFloat()
+n_ids = mister.add_grid_nodes((305, 305)) 
+
+flat_node_id = np.asarray([n_ids.flatten(), iq])
+# iq_normed = (iq-np.min(iq))/(np.max(iq)-np.min(iq))
+iq_normed = rgb_fe[:,0]
+for i in range(len(new_newC)):
+    uu,vv, mwt = new_newC[i, 0], new_newC[i,1], new_newC[i,2]
+    if (uu>=sink or vv>=sink)==False:
+        mister.add_edge(int(uu),int(vv),mwt,mwt)
+
+mister.add_grid_tedges(n_ids, img, 1-img)
+mister.maxflow()
+sgm = mister.get_grid_segments(nodeids)
+img2 = np.int_(np.logical_not(sgm))
+from matplotlib import pyplot as ppl
+ppl.figure()
+ppl.imshow(img2)
+ppl.show()
+
+
+######################################## austin's code
 
 #%% different way to do orientation
 from orix.io import load
