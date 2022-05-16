@@ -28,7 +28,7 @@ plt.close('all')
 #%%
 ################## load materials and image 
 # this whole section will be replaced by graph cut function eventually
-path = r'/Users/paytone/Documents/GitHub/maxflow_for_matsci/Data/steel_ebsd.ang'
+path = r'C:\Users\ashle\Documents\GitHub\Mart2Aust_Hackathon\orix\graphCut\data\steel_ebsd.ang'
 
 # Read each column from the file
 euler1, euler2, euler3, x, y, iq, dp, phase_id, sem, fit  = np.loadtxt(path, unpack=True)
@@ -95,26 +95,26 @@ structure = maxflow.vonNeumann_structure(ndim=2, directed=True)
 # start creating the network for graph cut
 g.add_grid_edges(nodeids, ipw, structure=structure, symmetric=True)
 g.add_grid_tedges(nodeids, img, 1-img)
-g.maxflow() #get graph cut
+# g.maxflow() #get graph cut
 
 #%% plot graph cut
 sgm = g.get_grid_segments(nodeids)
 img2 = np.int_(np.logical_not(sgm))
 from matplotlib import pyplot as ppl
-ppl.figure()
-ppl.imshow(img2)
-ppl.show()
+# ppl.figure()
+# ppl.imshow(img2)
+# ppl.show()
 
 #%% get connectivity information from network
 C = g.get_nx_graph()
 
 import networkx as nx
 import scipy.sparse as sp
-AA = nx.to_scipy_sparse_array(C)
-sparseUpperArr = sp.triu(AA)
+adj_arr = nx.to_scipy_sparse_array(C) # turn into sparse array (for space)
+sparseUpperArr = sp.triu(adj_arr) # gets upper diagonal of array to save space
 
-u,v,wt = sp.find(sparseUpperArr)
-connectivity = np.asanyarray([u,v])
+u,v,wt = sp.find(sparseUpperArr) # gets node to node connections and weights
+connectivity = np.asanyarray([u,v]) # extract just the node connections
 
 #%%
 sink = np.amax(connectivity.ravel())
@@ -122,32 +122,59 @@ source = sink-1
 source_edges = np.any(connectivity==source,axis=0)
 sink_edges = np.any(connectivity==sink, axis=0)
 out_plane_loc = np.any(np.vstack([source_edges, sink_edges]), axis=0)
-connectivity2 = connectivity[:, ~out_plane_loc]
+connectivity2 = connectivity[:, ~out_plane_loc] # adjacency matrix without source and sink connections
+                                                # (in-plane connections)
 
 #%% Calculate misorientations for in-plane weights
 
-
 #m = (~o1).outer(o2) # from orix documentation, but slow and has memory problems
-o1 = xmap2.rotations[connectivity2[0,:]]
-o2 = xmap2.rotations[connectivity2[1,:]]
-m = Misorientation([o1.data, o2.data])
-m.symmetry = (symmetry.Oh, symmetry.Oh)
-m2 = m.map_into_symmetry_reduced_zone()
+o1 = xmap2.rotations[connectivity2[0,:]] # orientation of node u
+o2 = xmap2.rotations[connectivity2[1,:]] # orientation of node v
+m = Misorientation([o1.data, o2.data]) # misorientations between every u and v
+m.symmetry = (symmetry.Oh, symmetry.Oh) # Oh is symmetry (need to un-hard code)
+m2 = m.map_into_symmetry_reduced_zone() 
 
-D2 = m2.angle
+misori_angles = m2.angle
 
 #%% Update graph with new in-plane weights
 
-#BB = sp.coo_array((D2[0,:],(connectivity2[0,:],connectivity2[1,:])), AA.shape)
+#BB = sp.coo_array((D2[0,:],(connectivity2[0,:],connectivity2[1,:])), adj_arr.shape)
 
 # This method preserves the out of plane weights already assigned, reassigning the in-plane weights
-CC = sp.csr_array(AA)
-CC[connectivity2[0,:],connectivity2[1,:]] = D2[0,:]
+CC = sp.csr_array(adj_arr)
+CC[connectivity2[0,:],connectivity2[1,:]] = misori_angles[0,:] #assign misorientations as new weights to original nodes
 
 # Return sparse matrix to networkx format
-newC = nx.from_scipy_sparse_array(CC)
+newC = nx.from_scipy_sparse_array(CC) # new adjacency array with misori weights
+from full_from_diag import full_from_diag
+new_newC = full_from_diag(CC)  
 
+#%% different way to do orientation
+from orix.io import load
+from orix.quaternion import Rotation
+from scipy.spatial.transform import Rotation as R
+import numpy as np
 
+ebsd =xmap2
+sp_R = R.from_euler('ZXZ', ebsd.rotations.to_euler())
+n = 305
+o1 = sp_R[:-1:2]
+o2 = sp_R[1::2]
+# this line gets the misorientation (but NOT with symmetry considerations,
+# got to code that part up still)
+mis = R.__mul__(o1, o2.inv())
+# Now we just need to shave some lines off the tops and bottoms and flatten arrays
+# to get left-right, up-down, and hex-corner pairs
+ori_l = R.from_euler('ZXZ', ebsd.rotations.reshape(n, n)[1:,:].flatten().to_euler())
+ori_r = R.from_euler('ZXZ', ebsd.rotations.reshape(n, n)[:-1,:].flatten().to_euler())
+ori_u = R.from_euler('ZXZ', ebsd.rotations.reshape(n, n)[:,1:].flatten().to_euler())
+ori_d = R.from_euler('ZXZ', ebsd.rotations.reshape(n, n)[:,:-1].flatten().to_euler())
+ori_hex = R.from_euler('ZXZ', ebsd.rotations.reshape(n, n)[1:,1:].flatten().to_euler())
+ori_hex_2 = R.from_euler('ZXZ', ebsd.rotations.reshape(n, n)[:-1,:-1].flatten().to_euler())
+# misorientation connections
+lr_mis = R.__mul__(ori_l, ori_r.inv()).magnitude().reshape(n-1, n)
+ud_mis = R.__mul__(ori_u, ori_d.inv()).magnitude().reshape(n, n-1)
+hex_mis = R.__mul__(ori_hex, ori_hex_2.inv()).magnitude().reshape(n-1, n-1)
 
 
 
