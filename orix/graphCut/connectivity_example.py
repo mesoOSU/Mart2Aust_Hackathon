@@ -147,7 +147,7 @@ CC[connectivity2[0,:],connectivity2[1,:]] = misori_angles[0,:] #assign misorient
 # Return sparse matrix to networkx format
 newC = nx.from_scipy_sparse_array(CC) # new adjacency array with misori weights
 from full_from_diag import full_from_diag
-new_newC = full_from_diag(CC)  
+new_newC = full_from_diag(sp.triu(CC))  
 
 #%% different way to do orientation
 from orix.io import load
