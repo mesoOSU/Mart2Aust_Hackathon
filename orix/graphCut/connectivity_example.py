@@ -95,15 +95,15 @@ structure = maxflow.vonNeumann_structure(ndim=2, directed=True)
 # start creating the network for graph cut
 g.add_grid_edges(nodeids, ipw, structure=structure, symmetric=True)
 g.add_grid_tedges(nodeids, img, 1-img)
-# g.maxflow() #get graph cut
+g.maxflow() #get graph cut
 
 #%% plot graph cut
 sgm = g.get_grid_segments(nodeids)
 img2 = np.int_(np.logical_not(sgm))
-# from matplotlib import pyplot as ppl
-# ppl.figure()
-# ppl.imshow(img2)
-# ppl.show()
+from matplotlib import pyplot as ppl
+ppl.figure('second')
+ppl.imshow(img2)
+ppl.show()
 
 #%% get connectivity information from network
 C = g.get_nx_graph()
@@ -130,7 +130,7 @@ connectivity2 = connectivity[:, ~out_plane_loc] # adjacency matrix without sourc
 #m = (~o1).outer(o2) # from orix documentation, but slow and has memory problems
 o1 = xmap2.rotations[connectivity2[0,:]] # orientation of node u
 o2 = xmap2.rotations[connectivity2[1,:]] # orientation of node v
-m = Misorientation([o1.data, o2.data]) # misorientations between every u and v
+m = Misorientation(o1*o2.conj) # misorientations between every u and v
 m.symmetry = (symmetry.Oh, symmetry.Oh) # 'Oh' is symmetry (need to un-hard code)
 m2 = m.map_into_symmetry_reduced_zone() 
 
@@ -142,7 +142,7 @@ misori_angles = m2.angle
 
 # This method preserves the out of plane weights already assigned, reassigning the in-plane weights
 CC = sp.csr_array(adj_arr)
-CC[connectivity2[0,:],connectivity2[1,:]] = misori_angles[0,:] #assign misorientations as new weights to original nodes
+CC[connectivity2[0,:],connectivity2[1,:]] = misori_angles[:] #assign misorientations as new weights to original nodes
                                                                 # not sure why it gives two rows for misori
 # Return sparse matrix to networkx format
 newC = nx.from_scipy_sparse_array(CC) # new adjacency array with misori weights
@@ -156,7 +156,8 @@ n_ids = mister.add_grid_nodes((305, 305))
 
 flat_node_id = np.asarray([n_ids.flatten(), iq])
 # iq_normed = (iq-np.min(iq))/(np.max(iq)-np.min(iq))
-iq_normed = rgb_fe[:,0]
+iq_normed = iq.reshape((305,305))
+
 for i in range(len(new_newC)):
     uu,vv, mwt = new_newC[i, 0], new_newC[i,1], new_newC[i,2]
     if (uu>=sink or vv>=sink)==False:
@@ -165,10 +166,10 @@ for i in range(len(new_newC)):
 mister.add_grid_tedges(n_ids, img, 1-img)
 mister.maxflow()
 sgm = mister.get_grid_segments(nodeids)
-img2 = np.int_(np.logical_not(sgm))
+img3 = np.int_(np.logical_not(sgm))
 from matplotlib import pyplot as ppl
-ppl.figure()
-ppl.imshow(img2)
+ppl.figure("first")
+ppl.imshow(img3)
 ppl.show()
 
 
