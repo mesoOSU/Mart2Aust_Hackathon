@@ -214,12 +214,12 @@ def _get_vendor_columns(header, n_cols_file):
             "iq",  # Image quality from Hough transform
             "ci",  # Confidence index
             "phase_id",
-            "sem",
-            "fit",  # Pattern fit
             "unknown1",
+            "fit",  # Pattern fit
             "unknown2",
             "unknown3",
             "unknown4",
+            "unknown5",
         ],
         "emsoft": [
             "euler1",
@@ -351,76 +351,7 @@ def _get_phases_from_header(header):
         n_left = n_phases - len(phase_ids)
         phase_ids += [i for i in range(next_id, next_id + n_left)]
 
-    # If phases["point_group"] is a number, assume symmetry to be space group and convert to point group international
-    # notation
-    my_symmetry = phases["point_group"][0]
-    if my_symmetry.isdigit():
-        space_group = int(my_symmetry)
-        phases["point_group"] = _get_space_group_from_point_group(space_group)
-
     return phase_ids, names, phases["point_group"], phases["lattice_constants"]
-
-
-def _get_space_group_from_point_group(space_group):
-    """ extract point group name from space group
-
-    Get the point group name in international notation from the space group number
-
-    Parameters
-    ----------
-    space_group : int
-        space group number
-
-    Returns
-    -------
-    point_group_name : string
-        point group name in international notation
-
-    Notes
-    -----
-    Point groups and space groups are numbered according to the international
-    notation, NOT python 0-based indexing.
-    """
-
-    point_group_name = '1'
-    if space_group > 1: point_group_name = '-1'
-    if space_group > 2: point_group_name = '2'
-    if space_group > 5: point_group_name = 'm'
-    if space_group > 9: point_group_name = '2/m'
-    if space_group > 15: point_group_name = '222'
-    if space_group > 24: point_group_name = 'mm2'
-    if space_group > 46: point_group_name = 'mmm'
-    if space_group > 74: point_group_name = '4'
-    if space_group > 80: point_group_name = '-4'
-    if space_group > 82: point_group_name = '4/m'
-    if space_group > 88: point_group_name = '422'
-    if space_group > 98: point_group_name = '4mm'
-    if space_group > 110: point_group_name = '42m'
-    if space_group > 122: point_group_name = '4/mmm'
-    if space_group > 142: point_group_name = '3'
-    if space_group > 146: point_group_name = '-3'
-    if space_group > 148: point_group_name = '32'
-    if space_group > 155: point_group_name = '3m'
-    if space_group > 161: point_group_name = '-3m'
-    if space_group > 167: point_group_name = '6'
-    if space_group > 173: point_group_name = '-6'
-    if space_group > 174: point_group_name = '6/m'
-    if space_group > 176: point_group_name = '622'
-    if space_group > 182: point_group_name = '6mm'
-    if space_group > 186: point_group_name = '-6m2'
-    if space_group > 190: point_group_name = '6/mmm'
-    if space_group > 194: point_group_name = '23'
-    if space_group > 199: point_group_name = 'm-3'
-    if space_group > 206: point_group_name = '432'
-    if space_group > 214: point_group_name = '-43m'
-    if space_group > 220: point_group_name = 'm-3m'
-
-    warnings.warn(
-        f"Input symmetry is a number and is interpreted as a space group. "
-        f"Input symmetry {space_group} converted to point group {point_group_name}"
-    )
-
-    return point_group_name
 
 
 def file_writer(
