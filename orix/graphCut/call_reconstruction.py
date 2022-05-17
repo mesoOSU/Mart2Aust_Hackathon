@@ -5,15 +5,19 @@ Created on Monday May 16 13:39:19 2022
 @author: simon
 
 main call function run on LT ebsd and returns HT ebsd reconstruction
+secondary functions used in call_recon
 """
 
 ###imports
 import numpy as np
 import orix
+import maxflow
 
-def call_reconstruction(orig_ebsd,options,LT_MDF=None):
+from graphCutUtils import graph_cut
+
+def call_reconstruction(orig_ebsd,options,LT_MDF=None, MART_PHASE_ID=2):
     '''
-    
+
     Parameters
     ----------
     orig_ebsd : .ang ebsd file of low temperature as-measured form
@@ -26,13 +30,16 @@ def call_reconstruction(orig_ebsd,options,LT_MDF=None):
 
     '''
 
+    # PHASE_ID = 2 ### number val or 'string' corresponding to mart phase
+
     # If users provide a misorientation distribution function for the low-temp  phase (LT_MDF), overwrite the saved one with that
     if LT_MDF != None:
-        orig_ebsd.opt.LT_MDF = LT_MDF
+        ###pseudocode until we know how to shove MDF into orix.ebsd object
+        orig_ebsd.odf.mdf = LT_MDF
 
     # make a copy of the ebsd scan that is JUST the phase that needs
     # reconstructing. Everything else is ignored and left unchanged.
-    LT_ebsd = orig_ebsd(orig_ebsd.phaseId == 2)
+    LT_ebsd = orig_ebsd(orig_ebsd[MART_PHASE_ID]) ##phaseID==2 corresponding to mart
     # renumber
 
     # get in-plane weights by calculating adjaceny array using graph cut network generation
@@ -41,25 +48,25 @@ def call_reconstruction(orig_ebsd,options,LT_MDF=None):
 
     # Now do the actual reconstruction as a seperate function (helps avoid
     # accidental overwrites and removes pre-flight parameters)
-    recon_ebsd = Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options)
+    recon_ebsd = reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options, MART_PHASE_ID)
 
     # Now copy the original ebsd and replace the old values for the LT phases
     # with the new ones.
     temp_ebsd = recon_ebsd
-    temp_ebsd.phase = 2
+    temp_ebsd.phase = MART_PHASE_ID
     HT_ebsd = orig_ebsd
-    HT_ebsd(orig_ebsd.phaseId == 2).orientations = temp_ebsd.orientations
-    HT_ebsd(orig_ebsd.phaseId == 2).phaseId = recon_ebsd.phaseId
+    HT_ebsd(orig_ebsd.phaseId == MART_PHASE_ID).orientations = temp_ebsd.orientations
+    HT_ebsd(orig_ebsd.phaseId == MART_PHASE_ID).phaseId = recon_ebsd.phaseId
 
     return HT_ebsd
 
 
-def Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options):
-    #Reconstruct_HT_grains perform the actual reconstruction
+def reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options, MART_PHASE_ID):
+    #reconstruct_HT_grains perform the actual reconstruction
     #   performs a 'while ' loop that progressively cuts out possible grains
     #   until eithr there is nothing left to cut, or the algorithm starts
     #   failing too much
-    Active_Ebsd = LT_ebsd(LT_ebsd.phaseId == 2)
+    Active_Ebsd = LT_ebsd(LT_ebsd[MART_PHASE_ID])
     continue_recon = True
     iterations = 0
     bad_cut_counter = 0
@@ -74,7 +81,7 @@ def Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options):
             continue_recon = False
             print('\n=========================================')
             print('    reconstruction failed to complete    ')
-            print('    #0.0f voxels remain untransformed\n',sum(LT_ebsd.phaseId == 2))
+            print('    #0.0f voxels remain untransformed\n',sum(LT_ebsd[MART_PHASE_ID]))
             print('=========================================\n')
             continue
         if sum(LT_ebsd.phaseId == 2) == 0:
@@ -93,9 +100,9 @@ def Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options):
         # guess is a Parent orientation, it will get all Twins, but if it is a
         # Twin orientation, it will only grab the parent and not other twins of
         # that parent (this is fine, we fix this in a later step)
-        Rough_Guess = First_Pass_Cut(Active_Ebsd,neigh_list,IP_wts,HT_guess_ori,options)
+        Rough_Guess = first_pass_cut(Active_Ebsd,sparse_adjacency,ip_weights,HT_guess_ori,options)
         # is the grain big enough? if not, iterate counters and try again.
-        if size(Rough_Guess,1) < options.min_cut_size:
+        if np.size(Rough_Guess)[0] < options.min_cut_size:
             bad_cut_counter = bad_cut_counter +1
             iterations = iterations+1
             continue
@@ -104,9 +111,9 @@ def Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options):
         # Now we want to clean up this guess with a precision cut, where we
         # let the code choose the most likely parent orientation instead of
         # guessing
-        [proposed_grain, PT_oris] = Precision_cut(Rough_Guess,neigh_list,IP_wts,options)
+        [proposed_grain, PT_oris] = precision_cut(Rough_Guess,sparse_adjacency,ip_weights,options)
         # is the grain big enough? if not, iterate counters and try again.
-        if size(proposed_grain,1) < options.min_cut_size:
+        if np.size(proposed_grain)[0] < options.min_cut_size:
             bad_cut_counter = bad_cut_counter +1
             iterations = iterations+1
             continue
@@ -115,10 +122,10 @@ def Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options):
         # if the grain made it this far, reset the counters and do 5 graph
         # cuts (1 for the parent, 4 for the twins) to find the parent/twin areas
         bad_cut_counter = 0
-        [PT_ID_stack] = Seperate_Twins(proposed_grain, neigh_list, IP_wts, PT_oris,options)
+        [PT_ID_stack] = seperate_twins(proposed_grain, sparse_adjacency, ip_weights, PT_oris,options)
         # Use this data to overwrite the orientation and phase data in LT_ebsd
-        for i in 111#1:size(PT_oris,1):
-            mask = 111#PT_ID_stack(i,1:end)
+        for i in np.arange(np.size(PT_oris)[0]):
+            mask = PT_ID_stack[i,:]
             if sum(mask) < 5:
                 continue
             mask = mask(mask>0)
@@ -135,13 +142,13 @@ def Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options):
     #    end
 
         # Now prune the Active_Ebsd to only include untransformed stuff.
-        Active_Ebsd = LT_ebsd(LT_ebsd.phaseId == 2)
+        Active_Ebsd = LT_ebsd(LT_ebsd[MART_PHASE_ID])
 
         # report on reconstruction progress
         iterations = iterations +1
-        print('\n ------ Iter: #d Pcnt: #0.2f Remainder:#0.0f ------\n',...
-            iterations,...
-            sum(LT_ebsd.phaseId == 2)*100./size(LT_ebsd,1),...
+        print('\n ------ Iter: #d Pcnt: #0.2f Remainder:#0.0f ------\n',
+            iterations,
+            sum(LT_ebsd.phaseId == 2)*100./np.size(LT_ebsd)[0],
             sum(LT_ebsd.phaseId == 2))
     # At this point, either the reconstruction is finished, or it failed to
     # complete. either way, send the final result back to Aus_Recon
@@ -150,32 +157,36 @@ def Reconstruct_HT_grains(LT_ebsd, sparse_adjacency, ip_weights, options):
     return LT_ebsd2
 
 
-def First_Pass_Cut(Active_ebsd,neigh_list,IP_wts,HT_guess_ori,options):
+def first_pass_cut(Active_ebsd,neigh_list,ip_weights,HT_guess_ori,options):
     # Does a single layer graph cut to pull out an area that likely contains at
     # least one prior austenite grain, plus some surrounding materials
 
     # do some setup stuff
     ###HT_guess_ori = orientation.byEuler(296.5*degree,231.8*degree,49.4*degree,Active_ebsd.CS) # erase this later
     #####HT_guess_ori = orientation.byEuler(68*degree,140.5*degree,185.5*degree,Active_ebsd.CS) # erase this later
-    [pruned_neigh_list,pruned_IP_wts] = prune_IP_graph_connections(Active_ebsd.id,neigh_list,IP_wts)
-    N = size(Active_ebsd,1) # number of voxels
-    L = pruned_neigh_list(:,1) # left side of neigh_list connections
-    R = pruned_neigh_list(:,2)# right side of neigh_list connections
+    [pruned_neigh_list,pruned_ip_weights] = prune_IP_graph_connections(Active_ebsd.id,neigh_list,ip_weights)
+
+    N = np.size(Active_ebsd)[0] # number of voxels
+    L = pruned_neigh_list[:,1] # left side of neigh_list connections
+    R = pruned_neigh_list[:,2]# right side of neigh_list connections
     oris = Active_ebsd.orientations
-    mori = inv(HT_guess_ori).*oris
+    mori = inv(HT_guess_ori)*oris
     LT_MDF = Active_ebsd.opt.LT_MDF
     #clear Active_ebsd
     likelyhoods = alt_eval(LT_MDF,mori)
-    likelyhoods(likelyhoods <=0) = 0
+    likelyhoods[likelyhoods <= 0] = 0
     #lll = ((likelyhoods)+2)*0.175
 
     # temp plotting stuff
     ##figure()
     ##plot(Active_ebsd,lll)
 
+    ### create pymaxflow graph ((as object, or function??))
+
     # make a digraph with n+2 nodes (1 per voxel,plus source and sink)
     # NOTE: source has ID n+1, sink has ID n+2
-    FP_digraph = digraph
+
+    FP_digraph = graph_cut(nrows, ncols_odd, grid)
     FP_digraph = addnode(FP_digraph,N+2)
 
     # add source-to-voxel weights (equal to likelyhood that a given voxel's
@@ -188,19 +199,19 @@ def First_Pass_Cut(Active_ebsd,neigh_list,IP_wts,HT_guess_ori,options):
     #likelyhoods(likelyhoods <=0) = 0
     OP_wts = (likelyhoods*options.RGC_post_pre_m) + options.RGC_post_pre_b
     # OP_wts = (likelyhoods +2)*0.175
-    FP_digraph = addedge(FP_digraph, N+1, 1:N, OP_wts)
+    FP_digraph = addedge[FP_digraph, N+1, 1:N, OP_wts]
 
     # Add in-plane (voxel to voxel) connections)
-    FP_digraph = addedge(FP_digraph,L,R,pruned_IP_wts)
-    FP_digraph = addedge(FP_digraph,R,L,pruned_IP_wts)
+    FP_digraph = addedge[FP_digraph,L,R,pruned_ip_weights]
+    FP_digraph = addedge[FP_digraph,R,L,pruned_ip_weights]
 
     # add voxel-to-sink weights (all equal to the mean of the OP weights)
-    FP_digraph = addedge(FP_digraph, 1:N, N+2, ones(N,1)*mean(OP_wts))
+    FP_digraph = addedge[FP_digraph, 1:N, N+2, np.ones((N,1))*np.mean(OP_wts)]
     #FP_digraph = addedge(FP_digraph, 1:N, N+2, 4./OP_wts)
 
     # Perform graph cut
     [~,~,cs,~]=maxflow(FP_digraph,N+1,N+2)
-    cs(cs>length(Active_ebsd)) = []
+    cs[cs > np.len(Active_ebsd)] = []
     Rough_Guess = Active_ebsd(cs)
     # Code for debugging to show the cut out area. NOTE: this is not a grain,
     # Its just a region of the scan that likely has at least one complete grain
@@ -213,22 +224,22 @@ def First_Pass_Cut(Active_ebsd,neigh_list,IP_wts,HT_guess_ori,options):
     ##figure()
     ##l = pruned_neigh_list(:,1)
     ##r = pruned_neigh_list(:,2)
-    ##scatter(-Active_ebsd(l).y -Active_ebsd(r).y, Active_ebsd(l).x +Active_ebsd(r).x,1, pruned_IP_wts)
+    ##scatter(-Active_ebsd(l).y -Active_ebsd(r).y, Active_ebsd(l).x +Active_ebsd(r).x,1, pruned_ip_weights)
     
     return Rough_Guess
 
 
 
-def Precision_cut(Rough_Guess,neigh_list,IP_wts,options):
+def precision_cut(Rough_Guess,neigh_list,ip_weights,options):
     # Starting with a rough prior cut, this cut finds the most common high temp
     # orientation and cuts out JUST that grain and and twins of it.
 
     # do some setup stuff (note this is a more heavily pruned starting list
     # than the rough cut)
-    [pruned_neigh_list,pruned_IP_wts] = prune_IP_graph_connections(Rough_Guess.id,neigh_list,IP_wts)
-    N = size(Rough_Guess,1) # number of voxels
-    L = pruned_neigh_list(:,1) # left side of neigh_list connections
-    R = pruned_neigh_list(:,2)# right side of neigh_list connections
+    [pruned_neigh_list,pruned_ip_weights] = prune_IP_graph_connections(Rough_Guess.id,neigh_list,ip_weights)
+    N = np.size(Rough_Guess)[0] # number of voxels
+    L = pruned_neigh_list[:,] # left side of neigh_list connections
+    R = pruned_neigh_list[:,2]# right side of neigh_list connections
     OR = Rough_Guess.opt.OR
     HT_CS = Rough_Guess.CS
     [T2R,~] = calc_T2R(OR,Rough_Guess.CSList(3),Rough_Guess.CSList(2))
@@ -279,7 +290,7 @@ def Precision_cut(Rough_Guess,neigh_list,IP_wts,options):
     #figure()
     #l = pruned_neigh_list(:,1)
     #r = pruned_neigh_list(:,2)
-    #scatter(-Rough_Guess(L).y -Rough_Guess(R).y, Rough_Guess(L).x +Rough_Guess(R).x,1, pruned_IP_wts)
+    #scatter(-Rough_Guess(L).y -Rough_Guess(R).y, Rough_Guess(L).x +Rough_Guess(R).x,1, pruned_ip_weights)
 
 
     # make a digraph with n+2 nodes (1 per voxel,plus source and sink)
@@ -295,8 +306,8 @@ def Precision_cut(Rough_Guess,neigh_list,IP_wts,options):
     FP_digraph = addedge(FP_digraph, 1:N, N+2, 4./OP_wts)
 
     # Add in-plane (voxel to voxel) connections)
-    FP_digraph = addedge(FP_digraph,L,R,pruned_IP_wts)
-    FP_digraph = addedge(FP_digraph,R,L,pruned_IP_wts)
+    FP_digraph = addedge(FP_digraph,L,R,pruned_ip_weights)
+    FP_digraph = addedge(FP_digraph,R,L,pruned_ip_weights)
 
 
     # Perform graph cut
@@ -314,20 +325,20 @@ def Precision_cut(Rough_Guess,neigh_list,IP_wts,options):
     #figure()
     #l = pruned_neigh_list(:,1)
     #r = pruned_neigh_list(:,2)
-    #scatter(-Active_ebsd(l).y -Active_ebsd(r).y, Active_ebsd(l).x +Active_ebsd(r).x,1, IP_wts)
+    #scatter(-Active_ebsd(l).y -Active_ebsd(r).y, Active_ebsd(l).x +Active_ebsd(r).x,1, ip_weights)
 
     return proposed_grain, PT_oris
 
 
-def Seperate_Twins(proposed_grain, neigh_list, IP_wts, PT_oris,options)
+def seperate_twins(proposed_grain, neigh_list, ip_weights, PT_oris,options)
     # Given we have a for sure parent grain, check to see if parts would make
     # more sense as a twin or as part of the parent.
 
     # do some setup stuff
-    [pruned_neigh_list,pruned_IP_wts] = prune_IP_graph_connections(proposed_grain.id,neigh_list,IP_wts)
-    N = size(proposed_grain,1) # number of voxels
-    L = pruned_neigh_list(:,1) # left side of neigh_list connections
-    R = pruned_neigh_list(:,2)# right side of neigh_list connections
+    [pruned_neigh_list,pruned_ip_weights] = prune_IP_graph_connections(proposed_grain.id,neigh_list,ip_weights)
+    N = np.size(proposed_grain)[0] # number of voxels
+    L = pruned_neigh_list[:,1] # left side of neigh_list connections
+    R = pruned_neigh_list[:,2] # right side of neigh_list connections
     OR = proposed_grain.opt.OR
     HT_CS = proposed_grain.CS
     [R2T,~] = calc_R2T(OR,proposed_grain.CSList(3),proposed_grain.CSList(2))
@@ -338,7 +349,7 @@ def Seperate_Twins(proposed_grain, neigh_list, IP_wts, PT_oris,options)
     # recalculate the most likely grain here (as was done in the original
     # code), but I am fairly sure it is mostly redundant to do so.
 
-    Parent_and_Twin_IDs = zeros(size(PT_oris,1),size(oris,1))
+    Parent_and_Twin_IDs = zeros(np.size(PT_oris)[0],np.size(oris)[0])
 
     # Find the likelyhood that each pixel is part of the Parent grain. this
     # will become the background weighting for the 4 twin cuts.
@@ -379,8 +390,8 @@ def Seperate_Twins(proposed_grain, neigh_list, IP_wts, PT_oris,options)
         # add voxel-to-sink weights (likelyhood pixel is part of the parent)
         FP_digraph = addedge(FP_digraph, 1:N, N+2, OP_Parent_wts)
         # Add in-plane (voxel to voxel) connections)
-        FP_digraph = addedge(FP_digraph,L,R,pruned_IP_wts)
-        FP_digraph = addedge(FP_digraph,R,L,pruned_IP_wts)
+        FP_digraph = addedge(FP_digraph,L,R,pruned_ip_weights)
+        FP_digraph = addedge(FP_digraph,R,L,pruned_ip_weights)
         # Perform graph cut
         [~,~,cs,~]=maxflow(FP_digraph,N+1,N+2)
         cs(cs>length(proposed_grain)) = []
@@ -391,7 +402,7 @@ def Seperate_Twins(proposed_grain, neigh_list, IP_wts, PT_oris,options)
         # zero so they won't get pulled out again.
         assigned =(1:N).*(sum(Parent_and_Twin_IDs,1)>0)
         neigh_mask = ((ismember(L,assigned) == 0) +(ismember(R,assigned) == 0))>0
-        pruned_IP_wts = pruned_IP_wts.*neigh_mask    
+        pruned_ip_weights = pruned_ip_weights.*neigh_mask    
 
         # plotting for help
         #figure()
@@ -400,7 +411,7 @@ def Seperate_Twins(proposed_grain, neigh_list, IP_wts, PT_oris,options)
         #l = L(L>0)
         #r = L(R>0)
         #scatter(-proposed_grain(l).y -proposed_grain(r).y, ...
-        #    proposed_grain(l).x +proposed_grain(r).x,1, pruned_IP_wts)
+        #    proposed_grain(l).x +proposed_grain(r).x,1, pruned_ip_weights)
         ###figure()
         ###plot(proposed_grain,Parent_and_Twin_IDs(i,1:end))
     # get a map of twice-twinned (should never happen) and never twinned pixels
@@ -415,7 +426,7 @@ def Seperate_Twins(proposed_grain, neigh_list, IP_wts, PT_oris,options)
 
     return Parent_and_Twin_IDs
 
-def prune_IP_graph_connections(ids,neigh_list,IP_wts)
+def prune_IP_graph_connections(ids,neigh_list,ip_weights)
     # take the global neighbor list and in plane weights, prune out the
     # connections that don't connect voxels in the ids list, and renumber them
     # appropriately so the digraph function doesn't make orphan nodes
@@ -423,7 +434,7 @@ def prune_IP_graph_connections(ids,neigh_list,IP_wts)
     prune_mask = ismember(neigh_list(:,1),ids).*ismember(neigh_list(:,2),ids)
 
     # prune
-    pruned_IP_wts = IP_wts(prune_mask == 1)
+    pruned_ip_weights = ip_weights(prune_mask == 1)
     pruned_neigh_list = neigh_list(prune_mask == 1,:)
 
 
@@ -439,7 +450,7 @@ def prune_IP_graph_connections(ids,neigh_list,IP_wts)
 
     remapped_neigh_list = [l r]
 
-    return remapped_neigh_list,pruned_IP_wts
+    return remapped_neigh_list,pruned_ip_weights
 
 
 
@@ -476,7 +487,7 @@ def get_ip_weights(orig_ebsd):#(neigh_list,ebsd,options):
 
     return ip_weights
 
-def get_Out_of_plane_weights(oris,guess_ori,MDF,options):
+def get_out_of_plane_weights(oris,guess_ori,MDF,options):
     # given a list of orientations, guess ori, and MODF, use eval to find the
     # likelyhood that each orientation came from the guess orientation, then
     # weight those values according to the OP weighting and scaling factors
