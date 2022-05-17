@@ -27,7 +27,7 @@ further reference see
 Unit quaternions are efficient objects for representing rotations, and hence
 orientations.
 """
-
+from orix.quaternion._conversions import calculate_misorientation
 from orix.quaternion.quaternion import check_quaternion, Quaternion
 from orix.quaternion.rotation import Rotation, von_mises
 from orix.quaternion.orientation import Misorientation, Orientation
@@ -47,4 +47,5 @@ __all__ = [
     "get_distinguished_points",
     "get_point_group",
     "Symmetry",
+    "calculate_misorientation"
 ]
