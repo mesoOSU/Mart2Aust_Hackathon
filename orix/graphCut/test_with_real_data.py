@@ -113,11 +113,11 @@ nodeids = g.add_grid_nodes((321, 321))
 
 for i in range(len(for_net)):
     uu,vv, mwt = for_net[i, 0], for_net[i,1], for_net[i,2]
-    g.add_edge(int(uu),int(vv),mwt,mwt)
+    g.add_edge(int(uu),int(vv),10*mwt,10*mwt)
 
 # g.add_grid_tedges(nodeids, np.mean(outplane), outplane)
-g.add_grid_tedges(nodeids, outplane, 1/outplane)
-# g.add_grid_tedges(nodeids, outplane, 1-outplane)
+# g.add_grid_tedges(nodeids, outplane, 1/outplane)
+g.add_grid_tedges(nodeids, outplane, 1-outplane)
 g.maxflow()
 sgm = g.get_grid_segments(nodeids)
 img2 = np.int_(np.logical_not(sgm))
