@@ -29,7 +29,7 @@ for users.
 
 import numba as nb
 import numpy as np
-from orix.quaternion import Misorientation
+#from orix.quaternion import Misorientation
 from scipy.spatial.transform import Rotation as R
 
 
@@ -566,36 +566,36 @@ def eu2qu_single(alpha, beta, gamma):
     return qu
 
 
-def calculate_misorientation(o1, o2):
-    """
-    Calculates the misorientation values between o1 and o2 and returns
-    them as an list of Orix Misorientation values
+# def calculate_misorientation(o1, o2):
+#     """
+#     Calculates the misorientation values between o1 and o2 and returns
+#     them as an list of Orix Misorientation values
 
-    :param o1:
-        The first Orientation.
+#     :param o1:
+#         The first Orientation.
 
-    :param o2:
-        The second Orientation.
+#     :param o2:
+#         The second Orientation.
 
-    :return:
-        A list of Orix Misorientations
-    """
+#     :return:
+#         A list of Orix Misorientations
+#     """
 
-    sciO1 = R.from_euler('ZXZ', o1.to_euler())
-    sciO2 = R.from_euler('ZXZ', o2.to_euler())
+#     sciO1 = R.from_euler('ZXZ', o1.to_euler())
+#     sciO2 = R.from_euler('ZXZ', o2.to_euler())
 
-    misorientation = R.__mul__(sciO1, sciO2.inv())
-    orixM = Misorientation.from_euler(misorientation.as_euler('ZXZ'))
+#     misorientation = R.__mul__(sciO1, sciO2.inv())
+#     orixM = Misorientation.from_euler(misorientation.as_euler('ZXZ'))
 
-    # do math here with scipy things
-    # Then convert back
+#     # do math here with scipy things
+#     # Then convert back
 
-    s1 = o1.symmetry
-    s2 = o2.symmetry
+#     s1 = o1.symmetry
+#     s2 = o2.symmetry
 
-    orixM.symmetry = (s1, s2)
+#     orixM.symmetry = (s1, s2)
 
-    print(orixM)
+#     print(orixM)
 
-    return orixM
+#     return orixM
 
