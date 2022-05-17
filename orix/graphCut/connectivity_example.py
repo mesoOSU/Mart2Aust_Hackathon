@@ -7,6 +7,7 @@ Created on Fri May 13 09:59:31 2022
 gets the connectivity of a network or a sparse adjacency matrix
 """
 
+#%%
 from diffpy.structure import Atom, Lattice, Structure
 import numpy as np
 from orix.crystal_map import CrystalMap
