@@ -25,7 +25,13 @@ from orix.vector import Vector3d
 plt.close('all')
 import h5py
 import time
-# f.close()
+
+#############  PLEASE READ  ##############
+# the first 4 cells is just loading data from AF_001.hdf5 so you can look at phases
+# you dont need to run these first 4 cells if you dont want to plot that so you can skip
+# to cell 5 it you want (run this cell first before doing that)
+##########################################
+
 #%% get .ang file from EBSD.hdf5 file
 file = r'C:\Users\ashle\Documents\GitHub\Mart2Aust_Hackathon\orix\graphCut\data\AF_001.hdf5'
 
@@ -83,26 +89,34 @@ rgb_fe = ckey_m3m.orientation2color(xmap2["ferrite"].orientations)
 xmap2["ferrite"].plot(rgb_fe)
 xmap2["austenite"].plot(rgb_au)
 
+
+
+###############################################################################################
 #%% load data from graph cut in matlab
 data_p = 'data/'
-in_mat_data = loadmat(data_p+'ipw_w.mat')
-inplane = in_mat_data['ipw_w'].T
+# load inplane weights (misorientations)
+in_mat_data = loadmat(data_p+'ipw_w.mat') 
+inplane = in_mat_data['ipw_w'].T 
+# load out of plane weights (misorientation with random orientation)
 out_mat_data = loadmat(data_p+'opw_w.mat')
 outplane = out_mat_data['opw_w'].reshape(321,321)
+# load node connections
 nodes = loadmat(data_p + 'ipDict.mat')['connections'].T
+#n create an array with node connections and corresponding weights 
 for_net = np.hstack((nodes, inplane))
+
 #%% rough graph cut
 g = maxflow.GraphFloat()
 nodeids = g.add_grid_nodes((321, 321))
-# good_nodes = nodeids*1
-# good_nodes[good_nodes<20000] = -1 # test blocking out section for graph cut
+# good_nodes[good_nodes<20000] = 0 # test blocking out section for graph cut
 
+# assign weights from node connections in for_net
 for i in range(len(for_net)):
     uu,vv, mwt = for_net[i, 0], for_net[i,1], for_net[i,2]
     g.add_edge(int(uu),int(vv),mwt,mwt)
 
-# g.add_grid_tedges(nodeids, outplane, np.mean(outplane))
-# g.add_grid_tedges(nodeids, outplane, 1/outplane)
+# g.add_grid_tedges(nodeids, outplane, np.mean(outplane))   #test different weighting
+# g.add_grid_tedges(nodeids, outplane, 1/outplane)          #test different weighting
 g.add_grid_tedges(nodeids, outplane, 1-outplane)
 g.maxflow()
 sgm = g.get_grid_segments(nodeids)
@@ -116,37 +130,41 @@ ppl.show()
 # precision graph cut
 
 # assign austenite grains nodes to 0 --> pymaxflow will now ignore these
-p = maxflow.GraphFloat()
-new_nodeids = p.add_grid_nodes((321, 321))
-new_nodeids[sgm==True] = 0
+p = maxflow.GraphFloat() # make a new graph (i dont know if this is actually necessary)
+new_nodeids = p.add_grid_nodes((321, 321)) 
+new_nodeids[sgm==True] = 0  # where old graph cut = true, set those nodes to 0 in nodes for this graph
 
 #%%
 start = time.time()
-nzn = new_nodeids[new_nodeids!=0].flatten()
+nzn = new_nodeids[new_nodeids!=0].flatten() # get non-zero node IDs
+
+# make a new "for_net" variable without the zero node IDs
 new_for_net = []
 for ii in range(len(for_net)):
     test_u, test_v, test_wt = for_net[ii,:]
     if test_u in nzn and test_v in nzn:
         new_for_net.append((test_u, test_v, test_wt))
 new_for_net = np.asarray(new_for_net)   
-   
+
+# set edges in new graph with old weights from "for_net" but with out the zero nodes
 for j in range(len(new_for_net)):
     uuu, vvv, mmwt = new_for_net[j, 0], new_for_net[j,1], new_for_net[j,2]
     p.add_edge(int(uuu),int(vvv),mmwt,mmwt)
         
 stop = time.time()
 total_time = stop-start 
-print('total time of for loop:', total_time)
+print('total time of for loop:', total_time) #just seeing how long this takes ~20 seconds
 
 #%%
-# load different source weights for second cut
+##### load different source weights for second cut
 from orix.graphCut.temp_functions import yardley_variants
 from call_reconstruction import get_op_weights_v2
 from orix.io import load
 xmap2 = load(file)
 new_weights = get_op_weights_v2(xmap2)
 
-p.add_grid_tedges(new_nodeids, new_weights, 1-new_weights) # need to change out of plane weights here
+# assign new source and sink weights 
+p.add_grid_tedges(new_nodeids, new_weights, 1-new_weights)
 p.maxflow()
 sgm2 = p.get_grid_segments(new_nodeids)
 img3 = np.int_(np.logical_not(sgm2))
@@ -154,6 +172,7 @@ ppl.figure('pruned2')
 ppl.imshow(img3)
 ppl.show()
 
+## plot the difference between the first cut and the second
 diff = img2 - img3
 ppl.figure('diff')
 ppl.imshow(diff)
