@@ -5,6 +5,7 @@ Created on Fri May 13, 2022
 
 import math
 import numpy
+import numpy as np
 import scipy.special as sc
 
 
@@ -47,7 +48,7 @@ class ODF:
     # ============================ #
     #          Constructor         #
     # ============================ #
-    def __init__(self, f_hat, weights, bandwidth, CS, SS, odfKernel):
+    def __init__(self, f_hat, weights, bandwidth, CS, SS, odfKernel, center):
         """
         :param f_hat:
             # To-Do: Add what this is
@@ -75,6 +76,7 @@ class ODF:
         self.CS = CS
         self.SS = SS
         self.odfKernel = odfKernel
+        self.center = center
 
 
 # ============================ #
@@ -151,6 +153,7 @@ def cut(A):
 
     # Epsilon value denoting the cutoff point for Chebyshev values
     epsilon = 0.0100
+
     returnA = []
 
     # Loop through the array and add the large values
@@ -161,7 +164,6 @@ def cut(A):
     # Return the smaller list of Chebyshev coefficients
     return returnA
 
-
 def main():
 
     odfKernel = generate_kernel(0.1745)
@@ -171,6 +173,13 @@ def main():
     odfKernel2 = generate_kernel(0.34634)
     odfObject2 = calc_odf([], odfKernel2)
     print(odfObject2.odfKernel.A)
+
+def eval_kernel_odf(odf, g):
+
+    w = g-odf.center
+    v = odf.psi.C * np.pow(math.cos(w/2), odf.psi.kappa)
+
+    return v
 
 
 main()
