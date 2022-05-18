@@ -51,44 +51,38 @@ def init_user_defined_graph(self):
 
     print('asdf')
 
-def extract_connectivity(self):
+def get_connectivity(networkx_graph):
+    """
+    
 
-    #%% get connectivity information from network
-    adj_arr = nx.to_scipy_sparse_array(self.nxGraph) # turn into sparse array (for space)
-    sparseUpperArr = sp.triu(adj_arr) # gets upper diagonal of array to save space
+    Parameters
+    ----------
+    networkx_graph : TYPE
+        DESCRIPTION.
 
-    u,v,_ = sp.find(sparseUpperArr) # gets node to node connections and weights
-    connectivity = np.asanyarray([u,v]) # extract just the node connections
+    Returns
+    -------
+    inplane_connectivity : TYPE
+        DESCRIPTION.
 
-    #%%
-    sink = np.amax(connectivity.ravel())
+    """
+    adj_arr = nx.to_scipy_sparse_array(networkx_graph)
+    sparseUpperArr = sp.triu(adj_arr)
+    u,v,wt = sp.find(sparseUpperArr)
+    full_connectivity = np.asanyarray([u,v])
+    
+    sink = np.amax(full_connectivity.ravel())
     source = sink-1
-    source_edges = np.any(connectivity==source,axis=0)
-    sink_edges = np.any(connectivity==sink, axis=0)
+    source_edges = np.any(full_connectivity==source,axis=0)
+    sink_edges = np.any(full_connectivity==sink, axis=0)
     out_plane_loc = np.any(np.vstack([source_edges, sink_edges]), axis=0)
-    connectivity2 = connectivity[:, ~out_plane_loc] # adjacency matrix without source and sink connections
-                                                    # (in-plane connections)
+    inplane_connectivity = full_connectivity[:, ~out_plane_loc] # adjacency matrix without source and sink connections
+    return inplane_connectivity
 
-    # #%% Calculate misorientations for in-plane weights
-    # #m = (~o1).outer(o2) # from orix documentation, but slow and has memory problems
-    # o1 = xmap.rotations[connectivity2[0,:]] # orientation of node u
-    # o2 = xmap.rotations[connectivity2[1,:]] # orientation of node v
-    # m = Misorientation(o1*o2.conj) # misorientations between every u and v
-    # m.symmetry = (symmetry.Oh, symmetry.Oh) # 'Oh' is symmetry (need to un-hard code)
-    # m2 = m.map_into_symmetry_reduced_zone() 
-    # misori_angles = m2.angle
 
-    #%% Update graph with new in-plane weights
+# inputs: xmap, (inplane)connect
+# outputs: misorientation for each node, random orientation (inplane and out of plane weights)
 
-    # This method preserves the out of plane weights already assigned, reassigning the in-plane weights
-    # updated_ip_weights = sp.csr_array(adj_arr)
-    # updated_ip_weights[connectivity2[0,:],connectivity2[1,:]] = misori_angles[:] #assign misorientations as new weights to original nodes
-    #                                                                 # not sure why it gives two rows for misori
-    # # Return sparse matrix to networkx format
-    # updated_nxgraph = nx.from_scipy_sparse_array(updated_ip_weights) # new adjacency array with misori weights
-    # updated_nxgraph = full_from_diag(sp.triu(updated_ip_weights)) # full from diag to copy upper tri recalculated to lower tri
-
-    return connectivity2
 
 def cut_graph(self):
     
