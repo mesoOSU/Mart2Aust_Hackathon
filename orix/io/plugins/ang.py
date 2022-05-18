@@ -351,23 +351,76 @@ def _get_phases_from_header(header):
         n_left = n_phases - len(phase_ids)
         phase_ids += [i for i in range(next_id, next_id + n_left)]
 
-    # If phases["point_group"] is a number, assume symmetry to be space group
-    #and convert to point group international notation
-    point_group_names = ['1', '-1', '2', 'm', '2/m', '222', 'mm2', 'mmm', '4',
-                         '-4', '4/m', '422', '4mm', '42m', '4/mmm', '3', '-3',
-                         '32', '3m', '-3m', '6', '-6', '6/m', '622', '6mm',
-                         '-6m2', '6/mmm', '23', '43', 'm-3', '432', '-43m',
-                         'm-3m'
-                         ]
-    for i, phase in enumerate(phases["point_group"]):
-        if phase.isdigit() and phase not in point_group_names:
-            space_group = int(phase)
-            phases["point_group"][i] = _get_space_group_from_point_group(space_group)
+    # If phases["point_group"] is a number, assume symmetry to be space group and convert to point group international
+    # notation
+    # Dictionary of accepted International, TSL, Schoenflies, and Geology notation point group names
+    symmetry_notations = ["International notation", "TSL", "Schoenflies", "Geology"]
+    # point_group_names = {
+    #     "International notation": {'1': '1', '-1': '2', '2': '3', 'm': '4', '2/m': '5', '222': '6', 'mm2': '7', 'mmm': '8', '4': '9', '-4': '10', '4/m': '11', '422': '12', '4mm': '13', '42m': '14', '4/mmm': '15', '3': '16', '-3': '17', '32': '18', '3m': '19', '-3m': '20', '6': '21', '-6': '22', '6/m': '23', '622': '24', '6mm': '25', '-6m2': '26', '6/mmm': '27', '23': '28', 'm-3': '29', '432': '30', '-43m': '31', 'm-3m': '32'},
+    #     "TSL": {'1': '1', '1': '2', '20': '3', '20': '4', '20': '5', '22': '6', '22': '7', '22': '8', '4': '9', '4': '10', '4': '11', '42': '12', '42': '13', '42': '14', '42': '15', '3': '16', '3': '17', '32': '18', '32': '19', '32': '20', '6': '21', '6': '22', '6': '23', '62': '24', '62': '25', '62': '26', '62': '27', '23': '28', '23': '29', '43': '30', '43': '31', '43': '32'},
+    #     "Schoenflies": {'C1': '1', 'S2': '2', 'C2': '3', 'C1h': '4', 'C2h': '5', 'V': '6', 'C2v': '7', 'D2h': '8', 'C4': '9', 'S4': '10', 'C4h': '11', 'D4': '12', 'C4v': '13', 'D2d': '14', 'D4h': '15', 'C3': '16', 'S6': '17', 'D3': '18', 'C3v': '19', 'D3d': '20', 'C6': '21', 'C3h': '22', 'C6h': '23', 'D6': '24', 'C6v': '25', 'D3h': '26', 'D6h': '27', 'T': '28', 'Th': '29', 'O': '30', 'Td': '31', 'Oh': '32'},
+    #     "Geo": {'-1': '1', '-2-2': '2', '-2': '3', '1': '4', '-22': '5', '-2-2': '6', '2': '7', '22': '8', '-4': '9', '-4-2': '10', '-42': '11', '-4-2': '12', '4': '13', '4-2': '14', '42': '15', '-3': '16', '-6-2': '17', '-3-2': '18', '3': '19', '6-2': '20', '-6': '21', '-32': '22', '-62': '23', '-6-2': '24', '6': '25', '32': '26', '62': '27', '-3-3': '28', '4-3': '29', '-4-3': '30', '-33': '31', '-43': '32'},
+    # }
+    # point_group_laue_group_dict[notation][crystal symmetry] returns laue group for given notations crystal symmetry
+    point_group_laue_group_dict = {
+        "International notation": {'1': '-1', '-1': '-1', '2': '2/m', 'm': '2/m', '2/m': '2/m', '222': 'mmm',
+                                   'mm2': 'mmm', 'mmm': 'mmm', '4': '4/m', '-4': '4/m', '4/m': '4/m', '422': '4/mmm',
+                                   '4mm': '4/mmm', '42m': '4/mmm', '4/mmm': '4/mmm', '3': '-3', '-3': '-3', '32': '-3m',
+                                   '3m': '-3m', '-3m': '-3m', '6': '6/m', '-6': '6/m', '6/m': '6/m', '622': '6/mmm',
+                                   '6mm': '6/mmm', '-6m2': '6/mmm', '6/mmm': '6/mmm', '23': 'm-3', 'm-3': 'm-3',
+                                   '432': 'm-3m', '-43m': 'm-3m', 'm-3m': 'm-3m'},
+        "TSL": {'1': '-1', '20': '2/m', '22': 'mmm', '4': '4/m', '42': '4/mmm', '3': '-3', '32': '-3m', '6': '6/m',
+                '62': '6/mmm', '23': 'm-3', '43': 'm-3m'},
+        "Schoenflies": {'C1': '-1', 'S2': '-1', 'C2': '2/m', 'C1h': '2/m', 'C2h': '2/m', 'V': 'mmm', 'C2v': 'mmm',
+                        'D2h': 'mmm', 'C4': '4/m', 'S4': '4/m', 'C4h': '4/m', 'D4': '4/mmm', 'C4v': '4/mmm',
+                        'D2d': '4/mmm', 'D4h': '4/mmm', 'C3': '-3', 'S6': '-3', 'D3': '-3m', 'C3v': '-3m', 'D3d': '-3m',
+                        'C6': '6/m', 'C3h': '6/m', 'C6h': '6/m', 'D6': '6/mmm', 'C6v': '6/mmm', 'D3h': '6/mmm',
+                        'D6h': '6/mmm', 'T': 'm-3', 'Th': 'm-3', 'O': 'm-3m', 'Td': 'm-3m', 'Oh': 'm-3m'},
+        "Geology": {'-1': '-1', '-(22)': '-1', '-2': '2/m', '1': '2/m', '-22': '2/m', '-2-2': 'mmm', '2': 'mmm',
+                    '22': 'mmm', '-4': '4/m', '-(42)': '4/m', '-42': '4/m', '-4-2': '4/mmm', '4': '4/mmm',
+                    '4-2': '4/mmm', '42': '4/mmm', '-3': '-3', '-(62)': '-3', '-3-2': '-3m', '3': '-3m', '6-2': '-3m',
+                    '-6': '6/m', '-32': '6/m', '-62': '6/m', '-6-2': '6/mmm', '6': '6/mmm', '32': '6/mmm',
+                    '62': '6/mmm', '-3-3': 'm-3', '4-3': 'm-3', '-4-3': 'm-3m', '-33': 'm-3m', '-43': 'm-3m'},
+    }
+    # point_group_names = ['1', '-1', '2', 'm', '2/m', '222', 'mm2', 'mmm', '4', '-4', '4/m', '422', '4mm', '42m',
+    #                      '4/mmm', '3', '-3', '32', '3m', '-3m', '6', '-6', '6/m', '622', '6mm', '-6m2', '6/mmm', '23',
+    #                      'm-3', '432', '-43m', 'm-3m']
+    # print(point_group_laue_group_dict["Schoenflies"]['Th'])
+    user_notation = []
+    common_notation = True
+    if len(phases["point_group"]) > 1:
+        for i, phase in enumerate(phases["point_group"]):
+            for notation in symmetry_notations:
+                if phase in point_group_laue_group_dict[notation]:
+                    user_notation.append(notation)
+    else:
+        for i, phase in enumerate(phases["point_group"]):
+            for notation in symmetry_notations:
+                if phase not in point_group_laue_group_dict[notation] and phase != '0':
+                    if phase.isdigit():
+                        space_group = int(phase)
+                        phases["point_group"][i] = _get_point_group_from_space_group(space_group)
+                    else:
+                        warnings.warn(f"Input header symmetry unrecognized")
+    for i in range(len(user_notation)):
+        if user_notation.count(user_notation[i]) != len(user_notation):
+            common_notation = False
+    if common_notation is False:
+        warnings.warn(f"Input header symmetries are not identified as the same notation")
+
+    print(common_notation)
+    # for i, phase in enumerate(phases["point_group"]):           # Gather phases?
+    #         user_phases = user_phases.append(phase)
+    # else:
+    #     for i, phase in enumerate(phases["point_group"]):
+    #         if phase.isdigit() and phase not in point_group_names:
+    #             space_group = int(phase)
+    #             phases["point_group"][i] = _get_space_group_from_point_group(space_group)
 
     return phase_ids, names, phases["point_group"], phases["lattice_constants"]
 
 
-def _get_space_group_from_point_group(space_group):
+def _get_point_group_from_space_group(space_group):
     """ extract point group name from space group
     Get the point group name in international notation from the space group number
     Parameters
