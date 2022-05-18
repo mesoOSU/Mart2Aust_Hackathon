@@ -4,7 +4,7 @@ Created on Tue May 17 09:30:15 2022
 
 @author: ashley
 """
-
+#%%
 from diffpy.structure import Atom, Lattice, Structure
 import numpy as np
 from orix.crystal_map import CrystalMap
@@ -27,7 +27,7 @@ import h5py
 # f.close()
 #%% get .ang file from EBSD.hdf5 file
 
-file = r"C:\Users\ashle\Downloads\AF_001.hdf5"
+file = 'data/AF_001.hdf5'
 
 f = h5py.File(file, 'r')
 group = f['crystal_map']['data']
@@ -100,12 +100,12 @@ for_network_au = np.asarray(for_network_au).T
 
 
 #%% load data from graph cut in matlab
-data_p = r'C:\Users\ashle\Documents\GitHub\Mart2Aust_Hackathon\orix\graphCut\data\\'
+data_p = 'data/'
 in_mat_data = loadmat(data_p+'ipw_w.mat')
 inplane = in_mat_data['ipw_w'].T
 out_mat_data = loadmat(data_p+'opw_w.mat')
 outplane = out_mat_data['opw_w'].reshape(321,321)
-nodes = loadmat(r'C:\Users\ashle\Downloads\ipDict.mat')['connections'].T
+nodes = loadmat('data/ipDict.mat')['connections'].T
 for_net = np.hstack((nodes, inplane))
 #%% graph cut
 g = maxflow.GraphFloat()
@@ -113,11 +113,11 @@ nodeids = g.add_grid_nodes((321, 321))
 
 for i in range(len(for_net)):
     uu,vv, mwt = for_net[i, 0], for_net[i,1], for_net[i,2]
-    g.add_edge(int(uu),int(vv),10*mwt,10*mwt)
+    g.add_edge(int(uu),int(vv),mwt,mwt)
 
-# g.add_grid_tedges(nodeids, np.mean(outplane), outplane)
+g.add_grid_tedges(nodeids, np.mean(outplane), outplane)
 # g.add_grid_tedges(nodeids, outplane, 1/outplane)
-g.add_grid_tedges(nodeids, outplane, 1-outplane)
+# g.add_grid_tedges(nodeids, outplane, 1-outplane)
 g.maxflow()
 sgm = g.get_grid_segments(nodeids)
 img2 = np.int_(np.logical_not(sgm))
@@ -129,3 +129,5 @@ ppl.show()
 
 
 
+
+# %%

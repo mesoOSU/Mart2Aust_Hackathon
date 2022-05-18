@@ -1,3 +1,4 @@
+from mimetypes import init
 import struct
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,9 +23,8 @@ class graph_cut(object):
         self.nodeids
         self.nxGraph
 
-        self.ip_weight
-        self.op_weight
-
+        # self.ip_weight
+        # self.op_weight
 
 def init_grid_graph(self):
 ### init grid-based graph to get connectivity
@@ -49,6 +49,22 @@ def init_grid_graph(self):
     self.nxGraph = self.g.get_nx_graph()
 
     return self.nxGraph
+
+def init_user_defined_graph(self):
+
+    n_ids = mister.add_grid_nodes((NROWS, NCOLS_ODD)) 
+
+    for i in range(len(updated_nxgraph)):
+        uu,vv, mwt = updated_nxgraph[i, 0], updated_nxgraph[i,1], updated_nxgraph[i,2]
+        if (uu>=sink or vv>=sink)==False:
+            mister.add_edge(int(uu),int(vv),mwt,mwt)
+
+    mister.add_grid_tedges(n_ids, op_weights_arr, 1/op_weights_arr)
+    mister.maxflow()
+    sgm = mister.get_grid_segments(n_ids)
+    img3 = np.int_(np.logical_not(sgm))
+
+    print('asdf')
 
 def extract_connectivity(self):
 

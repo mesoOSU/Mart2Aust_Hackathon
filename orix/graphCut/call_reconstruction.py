@@ -42,6 +42,8 @@ def call_reconstruction(orig_ebsd,options,LT_MDF=None, MART_PHASE_ID=2):
     LT_ebsd = orig_ebsd(orig_ebsd[MART_PHASE_ID]) ##phaseID==2 corresponding to mart
     # renumber
 
+    connect_graph = graph_cut(321, 321, 'SqrGrid')
+
     # get in-plane weights by calculating adjaceny array using graph cut network generation
     # to network x output for sparse array of (node1, node2, edge_weight)
     sparse_adjacency, ip_weights = get_ip_weights(orig_ebsd)
