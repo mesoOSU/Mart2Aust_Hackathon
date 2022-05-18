@@ -17,15 +17,16 @@ FILE_PATH = DATA_DIR + FILE_NAME
 options = {
     "options": "dictionary", 
     "GRID_TYPE": "SqrGrid", ### user defined as 'SqrGrid' or 'HexGrid'
+    "MART_PHASE_ID": 2, # PHASE_ID = 2 ### number val or 'string' corresponding to mart phase, or name CHILD_PHASE_ID
+    "max_recon_attempts": 10,
+    'min_cut_size': 100
 }
-
-
 
 ##### begin main
 
 xmap = load(FILE_PATH)
 
-options['NROWS'] = xmap.x
-options['NCOLS_ODD'] = xmap.y
+options['NROWS'] = xmap.shape[0]
+options['NCOLS_ODD'] = xmap.shape[1]
 
 call_reconstruction(xmap, options)

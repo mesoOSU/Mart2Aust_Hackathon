@@ -40,3 +40,4 @@ def full_from_diag(diag_sparse, output_type='coordinates'):
     else:
         print("select output type, either 'coordinates' or 'sparse_matrix'")
 
+
