@@ -11,21 +11,6 @@ from orix.crystal_map import CrystalMap, Phase, PhaseList
 from orix.quaternion import Orientation, Rotation, symmetry, Misorientation
 from orix.vector import Vector3d
 
-###TODO make graph cut object
-
-class graph_cut(object):
-    def __init__(self, nrows, ncols_odd, grid):
-        self.g = maxflow.GraphFloat()
-        self.nrows = nrows
-        self.ncols_odd = ncols_odd
-        self.grid = grid
-
-        self.nodeids
-        self.nxGraph
-
-        # self.ip_weight
-        # self.op_weight
-
 def init_grid_graph(self):
 ### init grid-based graph to get connectivity
 
@@ -52,7 +37,7 @@ def init_grid_graph(self):
 
 def init_user_defined_graph(self):
 
-    n_ids = mister.add_grid_nodes((NROWS, NCOLS_ODD)) 
+    self.nodeids = mister.add_grid_nodes((self.nrows, NCOLS_ODD)) 
 
     for i in range(len(updated_nxgraph)):
         uu,vv, mwt = updated_nxgraph[i, 0], updated_nxgraph[i,1], updated_nxgraph[i,2]
@@ -105,21 +90,21 @@ def extract_connectivity(self):
 
     return connectivity2
 
-# def cut_graph(self):
+def cut_graph(self):
     
-#     self.g.maxflow()
+    self.g.maxflow()
 
-#     sgm = self.g.get_grid_segments(self.nodeids)
-#     print(np.sum(sgm))
-#     img2 = np.int_(np.logical_not(sgm))
+    sgm = self.g.get_grid_segments(self.nodeids)
+    print(np.sum(sgm))
+    img2 = np.int_(np.logical_not(sgm))
 
-#     plt.imshow(img2)
-#     if self.grid == 'HexGrid':
-#         axes=plt.gca()
-#         axes.set_aspect(0.5)
-#     plt.show()
+    plt.imshow(img2)
+    if self.grid == 'HexGrid':
+        axes=plt.gca()
+        axes.set_aspect(0.5)
+    plt.show()
 
-#     return img2
+    return img2
 
 # def cut_graph2(self):
 #     #%% populate network through pymaxflow
