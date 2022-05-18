@@ -59,8 +59,10 @@ def get_ip_weights(orig_xmap, ip_connectivity):
     #m = (~o1).outer(o2) # from orix documentation, but slow and has memory problems
     o1 = orig_xmap.rotations[ip_connectivity[0,:]] # orientation of node u
     o2 = orig_xmap.rotations[ip_connectivity[1,:]] # orientation of node v
+    ### who is miss orientation and where do i meet her
+    mis = o1 - o2
     # mis = o1-o2
-    raw_ip_weights = Misorientation(o1*o2.conj).to_euler() # misorientations between every u and v
+    # raw_ip_weights = Misorientation(o1*o2.conj).to_euler() # misorientations between every u and v
 
     ### input raw weights
     ### pass through MDF
@@ -141,14 +143,45 @@ def get_op_weights_v2(xmap):
     # turn that into a likelyhood. This assumes the orientation spread is perfectly
     # symmetric( it isn't), and that this is the correct de la valle Poisson 
     # equation (it might be). It will get you close though.
-    hw = 2*np.pi/180
-    likelyhood = np.log(0.5**0.5)/np.log(np.cos(misos*hw/2))
-    like_map = np.zeros([xmap.shape[0]*xmap.shape[1]])
-    like_map[xmap['Mart'].id] = likelyhood
-    like_map = np.log(like_map.reshape(xmap.shape[0],xmap.shape[1]))
+
+    # hw = 2*np.pi/180
+    # likelyhood = np.log(0.5**0.5)/np.log(np.cos(misos*hw/2))
+    # like_map = np.zeros([xmap.shape[0]*xmap.shape[1]])
+    # like_map[xmap['Mart'].id] = likelyhood
+    # like_map = np.log(like_map.reshape(xmap.shape[0],xmap.shape[1]))
     #scipy_oris = R.from_euler('ZXZ',orix_oris.as_euler())
 
-    return like_map
+    hw = 2*np.pi/180
+    likelyhood_2 = -1/np.log(np.cos(misos*hw))
+    like_map_2 = np.zeros([xmap.shape[0]*xmap.shape[1]])
+    like_map_2[xmap['Mart'].id] = likelyhood_2
+    like_map_2 = np.log(like_map.reshape(xmap.shape[0],xmap.shape[1]))
+    like_map_2[like_map_2>100000] = 100000
+
+    return like_map_2
+
+def prune_IP_graph_connections(ids,ip_data):
+    # take the global neighbor list and in plane weights, prune out the
+    # connections that don't connect voxels in the ids list, and renumber them
+    # appropriately so the digraph function doesn't make orphan nodes
+    ids = np.unique(ids).sort()
+    prune_mask = np.in1d(ip_data[:,0],ids)*np.in1d(ip_data[:,1],ids)
+
+    # prune
+    pruned_ip_data = ip_data[prune_mask == 1]
+
+    # create translater array
+    translator = np.zeros_like(ids)
+    for i in range(len(ids)):
+        translator[ids[i]]=i
+
+    #remap
+    l = translator[pruned_ip_data[:,0]]
+    r = translator[pruned_ip_data[:,1]]
+
+    remapped_ip_connectivity = [l, r]
+
+    return remapped_ip_connectivity,pruned_ip_data
 
 def first_pass_cut(active_xmap, ip_data, options):
     """_summary_
@@ -169,7 +202,12 @@ def first_pass_cut(active_xmap, ip_data, options):
     ##HT_guess_ori = orientation.byEuler(296.5*degree,231.8*degree,49.4*degree,active_xmap.CS) # erase this later
     ####HT_guess_ori = orientation.byEuler(68*degree,140.5*degree,185.5*degree,active_xmap.CS) # erase this later
     
-    # [pruned_ip_connectivity,pruned_ip_weights] = prune_IP_graph_connections(active_xmap.id,ip_connectivity,ip_weights)
+    # [pruned_ip_connectivity,pruned_ip_weights] = prune_IP_graph_connections(active_xmap.id,ip_data)
+    ### old matlab code, do we need to do this before calculating OP weights??? seems like active_xmap should remove unnecessary nodes
+    # N = np.size(active_xmap)[0] # number of voxels
+    # L = pruned_ip_connectivity[:,1] # left side of ip_connectivity connections
+    # R = pruned_ip_connectivity[:,2]# right side of ip_connectivity connections
+    # oris = active_xmap.orientations
 
     ### add calc op_weights
     # op_weights = get_op_weights(active_xmap)
@@ -225,53 +263,56 @@ def precision_cut(Rough_Guess,ip_data,options):
     Returns:
         _type_: _description_
     """
+
+    ### TODO FIXME pls fix
+
     # # Starting with a rough prior cut, this cut finds the most common high temp
     # # orientation and cuts out JUST that grain and and twins of it.
 
     # # do some setup stuff (note this is a more heavily pruned starting list
     # # than the rough cut)
 
-    [pruned_ip_connectivity,pruned_ip_weights] = prune_IP_graph_connections(Rough_Guess.id,ip_connectivity,ip_weights)
-    N = np.size(Rough_Guess)[0] # number of voxels
-    L = pruned_ip_connectivity[:,] # left side of ip_connectivity connections
-    R = pruned_ip_connectivity[:,2] # right side of ip_connectivity connections
+    # [pruned_ip_connectivity,pruned_ip_weights] = prune_IP_graph_connections(Rough_Guess.id,ip_data)
+    # N = np.size(Rough_Guess)[0] # number of voxels
+    # L = pruned_ip_connectivity[:,] # left side of ip_connectivity connections
+    # R = pruned_ip_connectivity[:,2] # right side of ip_connectivity connections
 
-    # [T2R,~] = calc_T2R(OR,Rough_Guess.CSList(3),Rough_Guess.CSList(2))
-    # [R2T,~] = calc_R2T(OR,Rough_Guess.CSList(3),Rough_Guess.CSList(2))
+    # # [T2R,~] = calc_T2R(OR,Rough_Guess.CSList(3),Rough_Guess.CSList(2))
+    # # [R2T,~] = calc_R2T(OR,Rough_Guess.CSList(3),Rough_Guess.CSList(2))
 
-    ### need to figure out orix equiv of MTEX
-    # OR = Rough_Guess.opt.OR
-    # HT_CS = Rough_Guess.CS
-    # psi = Rough_Guess.opt.psi
-    oris = Rough_Guess.orientations
+    # ### need to figure out orix equiv of MTEX
+    # # OR = Rough_Guess.opt.OR
+    # # HT_CS = Rough_Guess.CS
+    # # psi = Rough_Guess.opt.psi
+    # oris = Rough_Guess.orientations
 
-    ### ???
-    T2R=oris*yardley_variants(oris)
-    R2T=oris*np.linalg.inv(yardley_variants(oris))
+    # ### ???
+    # T2R=oris*yardley_variants(oris)
+    # R2T=oris*np.linalg.inv(yardley_variants(oris))
 
-    # find the most likely HT orientation, deduce (if applicable), generate all
-    # LT variants of the parent and twin (120 non-unique for steel), and build
-    # an ODF from them whose kernel spread matches the estimated per-variant
-    # spread of the LT phase (determined in the Auto-OR script). This is how we
-    # will weight the out of plane weights. (STEVE: speed this up if you can, 
-    # huge time sink. approx 10-30# of run total time on the next few lines)
-    oris.symmetry = (symmetry.Oh, symmetry.Oh) # 'Oh' is symmetry (need to un-hard code)
-    Possible_PAG_oris = oris.map_into_symmetry_reduced_zone().rotations*T2R
-    # Possible_PAG_oris = rotation(symmetrise(oris))*T2R
-    Possible_PAG_oris.CS = HT_CS
-    Parent_odf=calcDensity(Possible_PAG_oris,'kernel',psi)
-    [~,Guess_ori] = max(Parent_odf)
-    Guess_rot = rotation.byEuler(Guess_ori.phi1,Guess_ori.Phi,Guess_ori.phi2,HT_CS)
-    if options.material == "Steel":
-        twin_rots = rotation.byAxisAngle(vector3d([1,1,1 -1,-1,1 -1,1,1 1,-1,1]'),60*degree,HT_CS)
-    else:
-        twin_rots = idquaternion
+    # # find the most likely HT orientation, deduce (if applicable), generate all
+    # # LT variants of the parent and twin (120 non-unique for steel), and build
+    # # an ODF from them whose kernel spread matches the estimated per-variant
+    # # spread of the LT phase (determined in the Auto-OR script). This is how we
+    # # will weight the out of plane weights. (STEVE: speed this up if you can, 
+    # # huge time sink. approx 10-30# of run total time on the next few lines)
+    # oris.symmetry = (symmetry.Oh, symmetry.Oh) # 'Oh' is symmetry (need to un-hard code)
+    # Possible_PAG_oris = oris.map_into_symmetry_reduced_zone().rotations*T2R
+    # # Possible_PAG_oris = rotation(symmetrise(oris))*T2R
+    # Possible_PAG_oris.CS = HT_CS
+    # Parent_odf=calcDensity(Possible_PAG_oris,'kernel',psi)
+    # [~,Guess_ori] = max(Parent_odf)
+    # Guess_rot = rotation.byEuler(Guess_ori.phi1,Guess_ori.Phi,Guess_ori.phi2,HT_CS)
+    # if options.material == "Steel":
+    #     twin_rots = rotation.byAxisAngle(vector3d([1,1,1 -1,-1,1 -1,1,1 1,-1,1]'),60*degree,HT_CS)
+    # else:
+    #     twin_rots = idquaternion
 
-    PT_rots = [Guess_rottranspose(Guess_rot*twin_rots)]
-    PT_oris = orientation(PT_rots,Rough_Guess.CS)
-    system_variants = rotation(symmetrise(PT_oris))*R2T
-    parent_twin_odf = calcDensity(system_variants,'kernel',psi)
-    parent_twin_odf.CS = HT_CS
+    # PT_rots = [Guess_rottranspose(Guess_rot*twin_rots)]
+    # PT_oris = orientation(PT_rots,Rough_Guess.CS)
+    # system_variants = rotation(symmetrise(PT_oris))*R2T
+    # parent_twin_odf = calcDensity(system_variants,'kernel',psi)
+    # parent_twin_odf.CS = HT_CS
 
     # tester figures
     #figure()
@@ -551,32 +592,6 @@ def call_reconstruction(orig_xmap, options, LT_MDF=None):
     ##scatter(-active_xmap(l).y -active_xmap(r).y, active_xmap(l).x +active_xmap(r).x,1, pruned_ip_weights)
     # Rough_Guess=None
     # return Rough_Guess
-
-def prune_IP_graph_connections(ids,ip_connectivity,ip_weights):
-    # take the global neighbor list and in plane weights, prune out the
-    # connections that don't connect voxels in the ids list, and renumber them
-    # appropriately so the digraph function doesn't make orphan nodes
-    ids = np.unique(ids).sort()
-    prune_mask = np.in1d(ip_connectivity[:,0],ids)*np.in1d(ip_connectivity[:,1],ids)
-
-    # prune
-    pruned_ip_weights = ip_weights[prune_mask == 1]
-    pruned_ip_connectivity = ip_connectivity[prune_mask == 1,:]
-
-
-    # create translater array
-    translator = np.zeros(max(ids),1)
-    for i in range(len(ids)):
-        translator[ids[i]]=i
-    
-
-    #remap
-    l = translator[pruned_ip_connectivity[:,1]]
-    r = translator[pruned_ip_connectivity[:,2]]
-
-    remapped_ip_connectivity = [l, r]
-
-    return remapped_ip_connectivity,pruned_ip_weights
 
 # def precision_cut(Rough_Guess,ip_connectivity,ip_weights,options):
 #     # Starting with a rough prior cut, this cut finds the most common high temp
@@ -870,8 +885,3 @@ def prune_IP_graph_connections(ids,ip_connectivity,ip_weights):
 #     # from 2 to 1.
 
 #     return orphan_IDs
-
-
-
-
-
