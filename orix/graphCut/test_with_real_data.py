@@ -83,29 +83,13 @@ rgb_fe = ckey_m3m.orientation2color(xmap2["ferrite"].orientations)
 xmap2["ferrite"].plot(rgb_fe)
 xmap2["austenite"].plot(rgb_au)
 
-#%%
-fer_x = np.round(2*(xmap2['ferrite'].x))
-fer_y = np.round(2*(xmap2['ferrite'].y))
-au_x = np.round(2*(xmap2['austenite'].x))
-au_y = np.round(2*(xmap2['austenite'].y))
-
-
-# arrange x and y corrdinates 
-for_network_fe = fer_x, fer_y#, thing here
-for_network_au = au_x, au_y#, thing here
-for_network_fe = np.asarray(for_network_fe).T
-for_network_au = np.asarray(for_network_au).T
-
-
-
-
 #%% load data from graph cut in matlab
 data_p = 'data/'
 in_mat_data = loadmat(data_p+'ipw_w.mat')
 inplane = in_mat_data['ipw_w'].T
 out_mat_data = loadmat(data_p+'opw_w.mat')
 outplane = out_mat_data['opw_w'].reshape(321,321)
-nodes = loadmat('data/ipDict.mat')['connections'].T
+nodes = loadmat(data_p + 'ipDict.mat')['connections'].T
 for_net = np.hstack((nodes, inplane))
 #%% graph cut
 g = maxflow.GraphFloat()
@@ -115,8 +99,8 @@ for i in range(len(for_net)):
     uu,vv, mwt = for_net[i, 0], for_net[i,1], for_net[i,2]
     g.add_edge(int(uu),int(vv),mwt,mwt)
 
-g.add_grid_tedges(nodeids, np.mean(outplane), outplane)
-# g.add_grid_tedges(nodeids, outplane, 1/outplane)
+# g.add_grid_tedges(nodeids, outplane, np.mean(outplane))
+g.add_grid_tedges(nodeids, outplane, 1/outplane)
 # g.add_grid_tedges(nodeids, outplane, 1-outplane)
 g.maxflow()
 sgm = g.get_grid_segments(nodeids)
