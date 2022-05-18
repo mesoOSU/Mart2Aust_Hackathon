@@ -552,7 +552,31 @@ def call_reconstruction(orig_xmap, options, LT_MDF=None):
     # Rough_Guess=None
     # return Rough_Guess
 
+def prune_IP_graph_connections(ids,ip_connectivity,ip_weights):
+    # take the global neighbor list and in plane weights, prune out the
+    # connections that don't connect voxels in the ids list, and renumber them
+    # appropriately so the digraph function doesn't make orphan nodes
+    ids = np.unique(ids).sort()
+    prune_mask = np.in1d(ip_connectivity[:,0],ids)*np.in1d(ip_connectivity[:,1],ids)
 
+    # prune
+    pruned_ip_weights = ip_weights[prune_mask == 1]
+    pruned_ip_connectivity = ip_connectivity[prune_mask == 1,:]
+
+
+    # create translater array
+    translator = np.zeros(max(ids),1)
+    for i in range(len(ids)):
+        translator[ids[i]]=i
+    
+
+    #remap
+    l = translator[pruned_ip_connectivity[:,1]]
+    r = translator[pruned_ip_connectivity[:,2]]
+
+    remapped_ip_connectivity = [l, r]
+
+    return remapped_ip_connectivity,pruned_ip_weights
 
 # def precision_cut(Rough_Guess,ip_connectivity,ip_weights,options):
 #     # Starting with a rough prior cut, this cut finds the most common high temp
