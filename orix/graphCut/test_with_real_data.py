@@ -24,10 +24,10 @@ from orix.quaternion import Orientation, Rotation, symmetry, Misorientation
 from orix.vector import Vector3d
 plt.close('all')
 import h5py
+import time
 # f.close()
 #%% get .ang file from EBSD.hdf5 file
-
-file = 'data/AF_001.hdf5'
+file = r'C:\Users\ashle\Documents\GitHub\Mart2Aust_Hackathon\orix\graphCut\data\AF_001.hdf5'
 
 f = h5py.File(file, 'r')
 group = f['crystal_map']['data']
@@ -91,27 +91,77 @@ out_mat_data = loadmat(data_p+'opw_w.mat')
 outplane = out_mat_data['opw_w'].reshape(321,321)
 nodes = loadmat(data_p + 'ipDict.mat')['connections'].T
 for_net = np.hstack((nodes, inplane))
-#%% graph cut
+#%% rough graph cut
 g = maxflow.GraphFloat()
 nodeids = g.add_grid_nodes((321, 321))
+# good_nodes = nodeids*1
+# good_nodes[good_nodes<20000] = -1 # test blocking out section for graph cut
 
 for i in range(len(for_net)):
     uu,vv, mwt = for_net[i, 0], for_net[i,1], for_net[i,2]
     g.add_edge(int(uu),int(vv),mwt,mwt)
 
 # g.add_grid_tedges(nodeids, outplane, np.mean(outplane))
-g.add_grid_tedges(nodeids, outplane, 1/outplane)
-# g.add_grid_tedges(nodeids, outplane, 1-outplane)
+# g.add_grid_tedges(nodeids, outplane, 1/outplane)
+g.add_grid_tedges(nodeids, outplane, 1-outplane)
 g.maxflow()
 sgm = g.get_grid_segments(nodeids)
 img2 = np.int_(np.logical_not(sgm))
 from matplotlib import pyplot as ppl
-ppl.figure()
+ppl.figure('rough cut')
 ppl.imshow(img2)
+ppl.show()
+
+# %%set austenite grains nodes to 0 and pymaxflow will automagically ignore
+# precision graph cut
+
+# assign austenite grains nodes to 0 --> pymaxflow will now ignore these
+p = maxflow.GraphFloat()
+new_nodeids = p.add_grid_nodes((321, 321))
+new_nodeids[sgm==True] = 0
+
+#%%
+start = time.time()
+nzn = new_nodeids[new_nodeids!=0].flatten()
+new_for_net = []
+for ii in range(len(for_net)):
+    test_u, test_v, test_wt = for_net[ii,:]
+    if test_u in nzn and test_v in nzn:
+        new_for_net.append((test_u, test_v, test_wt))
+new_for_net = np.asarray(new_for_net)   
+   
+for j in range(len(new_for_net)):
+    uuu, vvv, mmwt = new_for_net[j, 0], new_for_net[j,1], new_for_net[j,2]
+    p.add_edge(int(uuu),int(vvv),mmwt,mmwt)
+        
+stop = time.time()
+total_time = stop-start 
+print('total time of for loop:', total_time)
+
+#%%
+# load different source weights for second cut
+from orix.graphCut.temp_functions import yardley_variants
+from call_reconstruction import get_op_weights_v2
+from orix.io import load
+xmap2 = load(file)
+new_weights = get_op_weights_v2(xmap2)
+
+p.add_grid_tedges(new_nodeids, new_weights, 1-new_weights) # need to change out of plane weights here
+p.maxflow()
+sgm2 = p.get_grid_segments(new_nodeids)
+img3 = np.int_(np.logical_not(sgm2))
+ppl.figure('pruned2')
+ppl.imshow(img3)
+ppl.show()
+
+diff = img2 - img3
+ppl.figure('diff')
+ppl.imshow(diff)
 ppl.show()
 
 
 
 
 
-# %%
+
+
