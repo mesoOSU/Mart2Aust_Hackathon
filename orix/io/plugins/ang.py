@@ -351,18 +351,27 @@ def _get_phases_from_header(header):
         n_left = n_phases - len(phase_ids)
         phase_ids += [i for i in range(next_id, next_id + n_left)]
 
-    # If phases["point_group"] is a number, assume symmetry to be space group and convert to point group international
-    # notation
+    # Check header symmetry notation then convert and return corresponding laue groups
+    phases["point_group"] = _symmetry_unifier(phases)
+
+    return phase_ids, names, phases["point_group"], phases["lattice_constants"]
+
+
+def _symmetry_unifier(phases):
+    """ Check symmetry notation uniformity and return laue groups
+    Parameters
+    ----------
+    phases : dict
+        dict of phase information extracted from .ang header
+    Returns
+    -------
+    phases["point_group"] : list
+        laue group of phases
+    """
     # Dictionary of accepted International, TSL, Schoenflies, and Geology notation point group names
     symmetry_notations = ["International notation", "TSL", "Schoenflies", "Geology"]
-    # point_group_names = {
-    #     "International notation": {'1': '1', '-1': '2', '2': '3', 'm': '4', '2/m': '5', '222': '6', 'mm2': '7', 'mmm': '8', '4': '9', '-4': '10', '4/m': '11', '422': '12', '4mm': '13', '42m': '14', '4/mmm': '15', '3': '16', '-3': '17', '32': '18', '3m': '19', '-3m': '20', '6': '21', '-6': '22', '6/m': '23', '622': '24', '6mm': '25', '-6m2': '26', '6/mmm': '27', '23': '28', 'm-3': '29', '432': '30', '-43m': '31', 'm-3m': '32'},
-    #     "TSL": {'1': '1', '1': '2', '20': '3', '20': '4', '20': '5', '22': '6', '22': '7', '22': '8', '4': '9', '4': '10', '4': '11', '42': '12', '42': '13', '42': '14', '42': '15', '3': '16', '3': '17', '32': '18', '32': '19', '32': '20', '6': '21', '6': '22', '6': '23', '62': '24', '62': '25', '62': '26', '62': '27', '23': '28', '23': '29', '43': '30', '43': '31', '43': '32'},
-    #     "Schoenflies": {'C1': '1', 'S2': '2', 'C2': '3', 'C1h': '4', 'C2h': '5', 'V': '6', 'C2v': '7', 'D2h': '8', 'C4': '9', 'S4': '10', 'C4h': '11', 'D4': '12', 'C4v': '13', 'D2d': '14', 'D4h': '15', 'C3': '16', 'S6': '17', 'D3': '18', 'C3v': '19', 'D3d': '20', 'C6': '21', 'C3h': '22', 'C6h': '23', 'D6': '24', 'C6v': '25', 'D3h': '26', 'D6h': '27', 'T': '28', 'Th': '29', 'O': '30', 'Td': '31', 'Oh': '32'},
-    #     "Geo": {'-1': '1', '-2-2': '2', '-2': '3', '1': '4', '-22': '5', '-2-2': '6', '2': '7', '22': '8', '-4': '9', '-4-2': '10', '-42': '11', '-4-2': '12', '4': '13', '4-2': '14', '42': '15', '-3': '16', '-6-2': '17', '-3-2': '18', '3': '19', '6-2': '20', '-6': '21', '-32': '22', '-62': '23', '-6-2': '24', '6': '25', '32': '26', '62': '27', '-3-3': '28', '4-3': '29', '-4-3': '30', '-33': '31', '-43': '32'},
-    # }
-    # point_group_laue_group_dict[notation][crystal symmetry] returns laue group for given notations crystal symmetry
-    point_group_laue_group_dict = {
+    # laue_group_dict[notation][symmetry] returns laue group for given notations crystal symmetry
+    laue_group_dict = {
         "International notation": {'1': '-1', '-1': '-1', '2': '2/m', 'm': '2/m', '2/m': '2/m', '222': 'mmm',
                                    'mm2': 'mmm', 'mmm': 'mmm', '4': '4/m', '-4': '4/m', '4/m': '4/m', '422': '4/mmm',
                                    '4mm': '4/mmm', '42m': '4/mmm', '4/mmm': '4/mmm', '3': '-3', '-3': '-3', '32': '-3m',
@@ -381,101 +390,87 @@ def _get_phases_from_header(header):
                     '4-2': '4/mmm', '42': '4/mmm', '-3': '-3', '-(62)': '-3', '-3-2': '-3m', '3': '-3m', '6-2': '-3m',
                     '-6': '6/m', '-32': '6/m', '-62': '6/m', '-6-2': '6/mmm', '6': '6/mmm', '32': '6/mmm',
                     '62': '6/mmm', '-3-3': 'm-3', '4-3': 'm-3', '-4-3': 'm-3m', '-33': 'm-3m', '-43': 'm-3m'},
+        "Point Group": {'1': '-1', '2': '-1', '3': '2/m', '4': '2/m', '5': '2/m', '6': 'mmm',
+                                   '7': 'mmm', '8': 'mmm', '9': '4/m', '10': '4/m', '11': '4/m', '12': '4/mmm',
+                                   '13': '4/mmm', '14': '4/mmm', '15': '4/mmm', '16': '-3', '17': '-3', '18': '-3m',
+                                   '19': '-3m', '20': '-3m', '21': '6/m', '22': '6/m', '23': '6/m', '24': '6/mmm',
+                                   '25': '6/mmm', '26': '6/mmm', '27': '6/mmm', '28': 'm-3', '29': 'm-3',
+                                   '30': 'm-3m', '31': 'm-3m', '32': 'm-3m'},
+        "Space Group": {'1': '-1', '2': '-1', '3': '-1', '4': '2/m', '5': '2/m', '6': '2/m', '7': '2/m', '8': '2/m',
+                        '9': '2/m', '10': '2/m', '11': '2/m', '12': '2/m', '13': '2/m', '14': '2/m', '15': '2/m',
+                        '16': '2/m', '17': 'mmm', '18': 'mmm', '19': 'mmm', '20': 'mmm', '21': 'mmm', '22': 'mmm',
+                        '23': 'mmm', '24': 'mmm', '25': 'mmm', '26': 'mmm', '27': 'mmm', '28': 'mmm', '29': 'mmm',
+                        '30': 'mmm', '31': 'mmm', '32': 'mmm', '33': 'mmm', '34': 'mmm', '35': 'mmm', '36': 'mmm',
+                        '37': 'mmm', '38': 'mmm', '39': 'mmm', '40': 'mmm', '41': 'mmm', '42': 'mmm', '43': 'mmm',
+                        '44': 'mmm', '45': 'mmm', '46': 'mmm', '47': 'mmm', '48': 'mmm', '49': 'mmm', '50': 'mmm',
+                        '51': 'mmm', '52': 'mmm', '53': 'mmm', '54': 'mmm', '55': 'mmm', '56': 'mmm', '57': 'mmm',
+                        '58': 'mmm', '59': 'mmm', '60': 'mmm', '61': 'mmm', '62': 'mmm', '63': 'mmm', '64': 'mmm',
+                        '65': 'mmm', '66': 'mmm', '67': 'mmm', '68': 'mmm', '69': 'mmm', '70': 'mmm', '71': 'mmm',
+                        '72': 'mmm', '73': 'mmm', '74': 'mmm', '75': 'mmm', '76': '4/m', '77': '4/m', '78': '4/m',
+                        '79': '4/m', '80': '4/m', '81': '4/m', '82': '4/m', '83': '4/m', '84': '4/m', '85': '4/m',
+                        '86': '4/m', '87': '4/m', '88': '4/m', '89': '4/m', '90': '4/mmm', '91': '4/mmm', '92': '4/mmm',
+                        '93': '4/mmm', '94': '4/mmm', '95': '4/mmm', '96': '4/mmm', '97': '4/mmm', '98': '4/mmm',
+                        '99': '4/mmm', '100': '4/mmm', '101': '4/mmm', '102': '4/mmm', '103': '4/mmm', '104': '4/mmm',
+                        '105': '4/mmm', '106': '4/mmm', '107': '4/mmm', '108': '4/mmm', '109': '4/mmm', '110': '4/mmm',
+                        '111': '4/mmm', '112': '4/mmm', '113': '4/mmm', '114': '4/mmm', '115': '4/mmm', '116': '4/mmm',
+                        '117': '4/mmm', '118': '4/mmm', '119': '4/mmm', '120': '4/mmm', '121': '4/mmm', '122': '4/mmm',
+                        '123': '4/mmm', '124': '4/mmm', '125': '4/mmm', '126': '4/mmm', '127': '4/mmm', '128': '4/mmm',
+                        '129': '4/mmm', '130': '4/mmm', '131': '4/mmm', '132': '4/mmm', '133': '4/mmm', '134': '4/mmm',
+                        '135': '4/mmm', '136': '4/mmm', '137': '4/mmm', '138': '4/mmm', '139': '4/mmm', '140': '4/mmm',
+                        '141': '4/mmm', '142': '4/mmm', '143': '4/mmm', '144': '-3', '145': '-3', '146': '-3',
+                        '147': '-3', '148': '-3', '149': '-3', '150': '-3m', '151': '-3m', '152': '-3m', '153': '-3m',
+                        '154': '-3m', '155': '-3m', '156': '-3m', '157': '-3m', '158': '-3m', '159': '-3m',
+                        '160': '-3m', '161': '-3m', '162': '-3m', '163': '-3m', '164': '-3m', '165': '-3m',
+                        '166': '-3m', '167': '-3m', '168': '-3m', '169': '6/m', '170': '6/m', '171': '6/m',
+                        '172': '6/m', '173': '6/m', '174': '6/m', '175': '6/m', '176': '6/m', '177': '6/m',
+                        '178': '6/mmm', '179': '6/mmm', '180': '6/mmm', '181': '6/mmm', '182': '6/mmm', '183': '6/mmm',
+                        '184': '6/mmm', '185': '6/mmm', '186': '6/mmm', '187': '6/mmm', '188': '6/mmm', '189': '6/mmm',
+                        '190': '6/mmm', '191': '6/mmm', '192': '6/mmm', '193': '6/mmm', '194': '6/mmm', '195': '6/mmm',
+                        '196': 'm-3', '197': 'm-3', '198': 'm-3', '199': 'm-3', '200': 'm-3', '201': 'm-3',
+                        '202': 'm-3', '203': 'm-3', '204': 'm-3', '205': 'm-3', '206': 'm-3', '207': 'm-3',
+                        '208': 'm-3m', '209': 'm-3m', '210': 'm-3m', '211': 'm-3m', '212': 'm-3m', '213': 'm-3m',
+                        '214': 'm-3m', '215': 'm-3m', '216': 'm-3m', '217': 'm-3m', '218': 'm-3m', '219': 'm-3m',
+                        '220': 'm-3m', '221': 'm-3m', '222': 'm-3m', '223': 'm-3m', '224': 'm-3m', '225': 'm-3m',
+                        '226': 'm-3m', '227': 'm-3m', '228': 'm-3m', '229': 'm-3m', '230': 'm-3m'},
     }
-    # point_group_names = ['1', '-1', '2', 'm', '2/m', '222', 'mm2', 'mmm', '4', '-4', '4/m', '422', '4mm', '42m',
-    #                      '4/mmm', '3', '-3', '32', '3m', '-3m', '6', '-6', '6/m', '622', '6mm', '-6m2', '6/mmm', '23',
-    #                      'm-3', '432', '-43m', 'm-3m']
-    # print(point_group_laue_group_dict["Schoenflies"]['Th'])
-    user_notation = []
-    common_notation = True
-    if len(phases["point_group"]) > 1:
-        for i, phase in enumerate(phases["point_group"]):
-            for notation in symmetry_notations:
-                if phase in point_group_laue_group_dict[notation]:
-                    user_notation.append(notation)
+    narrowed_down_notations = []                                    # Initialize list for tracking matching notations
+    common_notation = True                                          # Assume notation is uniform until proved otherwise
+    counter = 0                                                     # Initialize while loop counter
+    total_phases = len(phases["point_group"])                       # Get number of phases
+    if total_phases > 1:                                            # If more than one phase
+        for phase in phases["point_group"]:                         # Check all header phases
+            for notation in symmetry_notations:                     # Check all notation standards
+                if phase not in laue_group_dict[notation]:          # If symmetry not found in current notation and
+                    if notation in narrowed_down_notations:         # the notation that doesn't match is in the narrowed
+                        narrowed_down_notations.remove(notation)    # down notations, eliminate as a possibility
+                if phase in laue_group_dict[notation]:              # Is the current phase found in the current notation
+                    if notation not in narrowed_down_notations:     # Is the matching notation in the narrowed_down list
+                        narrowed_down_notations.append(notation)    # Add notation as possible notation for other phases
+        while len(narrowed_down_notations) != 1 and counter > 10:   # Loop until only one notation possibility remaining
+            counter += 1
+            for phase in phases["point_group"]:
+                for notation in narrowed_down_notations:            # Now go back through the possible assumed notations
+                    if phase not in laue_group_dict[notation]:
+                        if notation in narrowed_down_notations:
+                            narrowed_down_notations.remove(notation)
+                    if phase in laue_group_dict[notation]:
+                        if notation not in narrowed_down_notations:
+                            narrowed_down_notations.append(notation)
     else:
-        for i, phase in enumerate(phases["point_group"]):
+        for i, phase in enumerate(phases["point_group"]):                       # If only one phase
             for notation in symmetry_notations:
-                if phase not in point_group_laue_group_dict[notation] and phase != '0':
-                    if phase.isdigit():
-                        space_group = int(phase)
-                        phases["point_group"][i] = _get_point_group_from_space_group(space_group)
-                    else:
-                        warnings.warn(f"Input header symmetry unrecognized")
-    for i in range(len(user_notation)):
-        if user_notation.count(user_notation[i]) != len(user_notation):
-            common_notation = False
-    if common_notation is False:
-        warnings.warn(f"Input header symmetries are not identified as the same notation")
+                if phase not in laue_group_dict[notation] and phase != '0':
+                    warnings.warn(f"Input header symmetry unrecognized")        # User input symmetry is not recognized
+    if len(narrowed_down_notations) != 1:                                       # Check to ensure uniform notation usage
+        common_notation = False
+    if common_notation is False:                                                # Warn user regarding non-uniformity
+        warnings.warn(f"Input header symmetries are not identified as the same notation. "
+                      f"Possible symmetry notations determined are {narrowed_down_notations}")
+    else:
+        for i, phase in enumerate(phases["point_group"]):                               # Loop through phases to convert
+            phases["point_group"][i] = laue_group_dict[narrowed_down_notations][phase]  # Convert phases symmetries
 
-    print(common_notation)
-    # for i, phase in enumerate(phases["point_group"]):           # Gather phases?
-    #         user_phases = user_phases.append(phase)
-    # else:
-    #     for i, phase in enumerate(phases["point_group"]):
-    #         if phase.isdigit() and phase not in point_group_names:
-    #             space_group = int(phase)
-    #             phases["point_group"][i] = _get_space_group_from_point_group(space_group)
-
-    return phase_ids, names, phases["point_group"], phases["lattice_constants"]
-
-
-def _get_point_group_from_space_group(space_group):
-    """ extract point group name from space group
-    Get the point group name in international notation from the space group number
-    Parameters
-    ----------
-    space_group : int
-        space group number
-    Returns
-    -------
-    point_group_name : string
-        point group name in international notation
-    Notes
-    -----
-    Point groups and space groups are numbered according to the international
-    notation, NOT python 0-based indexing.
-    """
-
-    point_group_name = '1'
-    if space_group > 1: point_group_name = '-1'
-    if space_group > 2: point_group_name = '2'
-    if space_group > 5: point_group_name = 'm'
-    if space_group > 9: point_group_name = '2/m'
-    if space_group > 15: point_group_name = '222'
-    if space_group > 24: point_group_name = 'mm2'
-    if space_group > 46: point_group_name = 'mmm'
-    if space_group > 74: point_group_name = '4'
-    if space_group > 80: point_group_name = '-4'
-    if space_group > 82: point_group_name = '4/m'
-    if space_group > 88: point_group_name = '422'
-    if space_group > 98: point_group_name = '4mm'
-    if space_group > 110: point_group_name = '42m'
-    if space_group > 122: point_group_name = '4/mmm'
-    if space_group > 142: point_group_name = '3'
-    if space_group > 146: point_group_name = '-3'
-    if space_group > 148: point_group_name = '32'
-    if space_group > 155: point_group_name = '3m'
-    if space_group > 161: point_group_name = '-3m'
-    if space_group > 167: point_group_name = '6'
-    if space_group > 173: point_group_name = '-6'
-    if space_group > 174: point_group_name = '6/m'
-    if space_group > 176: point_group_name = '622'
-    if space_group > 182: point_group_name = '6mm'
-    if space_group > 186: point_group_name = '-6m2'
-    if space_group > 190: point_group_name = '6/mmm'
-    if space_group > 194: point_group_name = '23'
-    if space_group > 199: point_group_name = 'm-3'
-    if space_group > 206: point_group_name = '432'
-    if space_group > 214: point_group_name = '-43m'
-    if space_group > 220: point_group_name = 'm-3m'
-
-    warnings.warn(
-        f"Input symmetry is a number and is interpreted as a space group. "
-        f"Input symmetry {space_group} converted to point group {point_group_name}"
-    )
-
-    return point_group_name
+    return phases["point_group"]
 
 
 def file_writer(
