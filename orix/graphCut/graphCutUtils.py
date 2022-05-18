@@ -51,22 +51,14 @@ def init_user_defined_graph(self):
 
     print('asdf')
 
-def get_connectivity(networkx_graph):
+def get_connectivity(self):
     """
-    
-
-    Parameters
-    ----------
-    networkx_graph : TYPE
-        DESCRIPTION.
-
     Returns
     -------
-    inplane_connectivity : TYPE
-        DESCRIPTION.
-
+    inplane_connectivity : Array of int32
+        returns the connectivity of inplane nodes of a network.
     """
-    adj_arr = nx.to_scipy_sparse_array(networkx_graph)
+    adj_arr = nx.to_scipy_sparse_array(self.get_nx_graph())
     sparseUpperArr = sp.triu(adj_arr)
     u,v,wt = sp.find(sparseUpperArr)
     full_connectivity = np.asanyarray([u,v])
