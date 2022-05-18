@@ -44,12 +44,15 @@ import matplotlib.pyplot as plt
 def get_ip_weights(orig_xmap, ip_connectivity):
     """_summary_
 
+        calculate in-plane weights by determining node-to-node misorientations using connectivity array
+        pass misorientations through MDF to get resulting density
+
     Args:
-        orig_xmap (_type_): _description_
-        ip_connectivity (_type_): _description_
+        orig_xmap (_type_): ORIX xmap structure of ebsd data
+        ip_connectivity (_type_): determined node connectivity from connect_graph
 
     Returns:
-        _type_: _description_
+        _type_: in-plane weights as node-to-node misorientations passed through MDF ftn
     """
     ## Calculate misorientations for in-plane weights
 
@@ -68,16 +71,21 @@ def get_ip_weights(orig_xmap, ip_connectivity):
     ip_weights = mat_data['ipw_w'] # or 'ipw_w'
     ip_weights = ip_weights.T
 
+    ###TODO these are the upper triangle connections, need to fullfromdiag to get all weights and connections
+
     return ip_weights
 
 def get_op_weights(active_xmap):
     """_summary_
 
+        calculate out-of-plane weights by getting misorientation between all nodes and one randomly selected node
+        pass through MDF to get density
+
     Args:
-        active_xmap (_type_): _description_
+        active_xmap (_type_): only the currently unsegmented martensite info in xmap structure
 
     Returns:
-        _type_: _description_
+        _type_: 1xn vector of op weights
     """
 
     Guess_ID = random.randint(0, active_xmap.size)
@@ -103,6 +111,16 @@ def get_op_weights(active_xmap):
     return op_weights
 
 def get_op_weights_v2(xmap):
+    """_summary_
+
+        austin yardely varient cheesed op weights while waiting for MDF
+
+    Args:
+        xmap (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # get yardley variants as orix rotation objects
     ksi = 'ks'
     yv_payton = yardley_variants('ks')
@@ -125,9 +143,9 @@ def get_op_weights_v2(xmap):
     # equation (it might be). It will get you close though.
     hw = 2*np.pi/180
     likelyhood = np.log(0.5**0.5)/np.log(np.cos(misos*hw/2))
-    like_map = np.zeros([321*321])
+    like_map = np.zeros([xmap.shape[0]*xmap.shape[1]])
     like_map[xmap['Mart'].id] = likelyhood
-    like_map = np.log(like_map.reshape(321,321))
+    like_map = np.log(like_map.reshape(xmap.shape[0],xmap.shape[1]))
     #scipy_oris = R.from_euler('ZXZ',orix_oris.as_euler())
 
     return like_map
@@ -135,16 +153,17 @@ def get_op_weights_v2(xmap):
 def first_pass_cut(active_xmap, ip_data, options):
     """_summary_
 
+    Does a single layer graph cut to pull out an area that likely contains at
+    least one prior austenite grain, plus some surrounding materials
+
     Args:
-        active_xmap (_type_): _description_
-        ip_data (_type_): _description_
-        options (_type_): _description_
+        active_xmap (_type_): only the currently unsegmented martensite info in xmap structure, initialized as all Mart
+        ip_data (_type_): node connections and weights
+        options (_type_): params dictionary
 
     Returns:
-        _type_: _description_
+        Rough_Guess (_type_): areas with likely prior austenite to be further segmented into grains
     """
-    # Does a single layer graph cut to pull out an area that likely contains at
-    # least one prior austenite grain, plus some surrounding materials
 
     # do some setup stuff
     ##HT_guess_ori = orientation.byEuler(296.5*degree,231.8*degree,49.4*degree,active_xmap.CS) # erase this later
@@ -155,7 +174,8 @@ def first_pass_cut(active_xmap, ip_data, options):
     ### add calc op_weights
     # op_weights = get_op_weights(active_xmap)
     op_weights = get_op_weights_v2(active_xmap)
-    plt.imshow(op_weights)
+    # plt.imshow(op_weights)
+    # plt.show()
 
     ####likelyhoods y=mx+b
 
@@ -166,9 +186,9 @@ def first_pass_cut(active_xmap, ip_data, options):
     sgm = rough_graph.g.get_grid_segments(rough_graph.nodeids)
     img3 = np.int_(np.logical_not(sgm))
     from matplotlib import pyplot as ppl
-    ppl.figure("first")
-    ppl.imshow(img3)
-    ppl.show()
+    # ppl.figure("first")
+    # ppl.imshow(img3)
+    # ppl.show()
 
     # Perform graph cut
     # [~,~,cs,~]=maxflow(FP_digraph,N+1,N+2)
@@ -192,14 +212,15 @@ def first_pass_cut(active_xmap, ip_data, options):
     #scatter(-active_xmap(l).y -active_xmap(r).y, active_xmap(l).x +active_xmap(r).x,1, pruned_ip_weights)
     return Rough_Guess
 
-def precision_cut(Rough_Guess,ip_connectivity,ip_weights,options):
+def precision_cut(Rough_Guess,ip_data,options):
     """_summary_
 
+        currently not working, segments first pass into indivdual grains
+
     Args:
-        Rough_Guess (_type_): _description_
-        ip_connectivity (_type_): _description_
-        ip_weights (_type_): _description_
-        options (_type_): _description_
+        Rough_Guess (_type_): fed in resulting xmap object segmented from first_pass_cut
+        ip_data (_type_): node connections and weights
+        options (_type_): params
 
     Returns:
         _type_: _description_
@@ -210,43 +231,47 @@ def precision_cut(Rough_Guess,ip_connectivity,ip_weights,options):
     # # do some setup stuff (note this is a more heavily pruned starting list
     # # than the rough cut)
 
-    # [pruned_ip_connectivity,pruned_ip_weights] = prune_IP_graph_connections(Rough_Guess.id,ip_connectivity,ip_weights)
-    # N = np.size(Rough_Guess)[0] # number of voxels
-    # L = pruned_ip_connectivity[:,] # left side of ip_connectivity connections
-    # R = pruned_ip_connectivity[:,2] # right side of ip_connectivity connections
+    [pruned_ip_connectivity,pruned_ip_weights] = prune_IP_graph_connections(Rough_Guess.id,ip_connectivity,ip_weights)
+    N = np.size(Rough_Guess)[0] # number of voxels
+    L = pruned_ip_connectivity[:,] # left side of ip_connectivity connections
+    R = pruned_ip_connectivity[:,2] # right side of ip_connectivity connections
 
-    # OR = Rough_Guess.orientations
-    # HT_CS = Rough_Guess.phases
     # [T2R,~] = calc_T2R(OR,Rough_Guess.CSList(3),Rough_Guess.CSList(2))
     # [R2T,~] = calc_R2T(OR,Rough_Guess.CSList(3),Rough_Guess.CSList(2))
 
+    ### need to figure out orix equiv of MTEX
+    # OR = Rough_Guess.opt.OR
+    # HT_CS = Rough_Guess.CS
     # psi = Rough_Guess.opt.psi
-    # oris = Rough_Guess.orientations
+    oris = Rough_Guess.orientations
 
-    # T2r=ori*yardley
-    # r2t=roi*invYardley
+    ### ???
+    T2R=oris*yardley_variants(oris)
+    R2T=oris*np.linalg.inv(yardley_variants(oris))
 
-    # # find the most likely HT orientation, deduce (if applicable), generate all
-    # # LT variants of the parent and twin (120 non-unique for steel), and build
-    # # an ODF from them whose kernel spread matches the estimated per-variant
-    # # spread of the LT phase (determined in the Auto-OR script). This is how we
-    # # will weight the out of plane weights. (STEVE: speed this up if you can, 
-    # # huge time sink. approx 10-30# of run total time on the next few lines)
+    # find the most likely HT orientation, deduce (if applicable), generate all
+    # LT variants of the parent and twin (120 non-unique for steel), and build
+    # an ODF from them whose kernel spread matches the estimated per-variant
+    # spread of the LT phase (determined in the Auto-OR script). This is how we
+    # will weight the out of plane weights. (STEVE: speed this up if you can, 
+    # huge time sink. approx 10-30# of run total time on the next few lines)
+    oris.symmetry = (symmetry.Oh, symmetry.Oh) # 'Oh' is symmetry (need to un-hard code)
+    Possible_PAG_oris = oris.map_into_symmetry_reduced_zone().rotations*T2R
     # Possible_PAG_oris = rotation(symmetrise(oris))*T2R
-    # Possible_PAG_oris.CS = HT_CS
-    # Parent_odf=calcDensity(Possible_PAG_oris,'kernel',psi)
-    # [~,Guess_ori] = max(Parent_odf)
-    # Guess_rot = rotation.byEuler(Guess_ori.phi1,Guess_ori.Phi,Guess_ori.phi2,HT_CS)
-    # if options.material == "Steel":
-    #     twin_rots = rotation.byAxisAngle(vector3d([1,1,1 -1,-1,1 -1,1,1 1,-1,1]'),60*degree,HT_CS)
-    # else:
-    #     twin_rots = idquaternion
+    Possible_PAG_oris.CS = HT_CS
+    Parent_odf=calcDensity(Possible_PAG_oris,'kernel',psi)
+    [~,Guess_ori] = max(Parent_odf)
+    Guess_rot = rotation.byEuler(Guess_ori.phi1,Guess_ori.Phi,Guess_ori.phi2,HT_CS)
+    if options.material == "Steel":
+        twin_rots = rotation.byAxisAngle(vector3d([1,1,1 -1,-1,1 -1,1,1 1,-1,1]'),60*degree,HT_CS)
+    else:
+        twin_rots = idquaternion
 
-    # PT_rots = [Guess_rottranspose(Guess_rot*twin_rots)]
-    # PT_oris = orientation(PT_rots,Rough_Guess.CS)
-    # system_variants = rotation(symmetrise(PT_oris))*R2T
-    # parent_twin_odf = calcDensity(system_variants,'kernel',psi)
-    # parent_twin_odf.CS = HT_CS
+    PT_rots = [Guess_rottranspose(Guess_rot*twin_rots)]
+    PT_oris = orientation(PT_rots,Rough_Guess.CS)
+    system_variants = rotation(symmetrise(PT_oris))*R2T
+    parent_twin_odf = calcDensity(system_variants,'kernel',psi)
+    parent_twin_odf.CS = HT_CS
 
     # tester figures
     #figure()
@@ -312,10 +337,15 @@ def precision_cut(Rough_Guess,ip_connectivity,ip_weights,options):
 def reconstruct_HT_grains(orig_xmap, ip_data, options):
     """_summary_
 
+        while loop for doing multi-stage graph cut on ebsd object to return 
+        first_pass_cut segments out mart phases
+        precision cut segments grains
+        segment twins splits grains into twins if needed ###TODO rewrite segment twins
+
     Args:
-        orig_xmap (_type_): _description_
-        ip_data (_type_): _description_
-        options (_type_): _description_
+        orig_xmap (_type_): ORIX xmap object of original ebsd file loaded in main
+        ip_data (_type_): in-plane data, both (node1, node2) locations and weights
+        options (_type_): dictionary of params
     """
 
     active_xmap = orig_xmap[orig_xmap.phases[options['MART_PHASE_ID']].name]
@@ -358,12 +388,12 @@ def reconstruct_HT_grains(orig_xmap, ip_data, options):
         # Now we want to clean up this guess with a precision cut, where we
         # let the code choose the most likely parent orientation instead of
         # guessing
-        [proposed_grain, PT_oris] = precision_cut(Rough_Guess,ip_data,options)
-        # is the grain big enough? if not, iterate counters and try again.
-        if np.size(proposed_grain)[0] < options['min_cut_size']:
-            bad_cut_counter = bad_cut_counter +1
-            iterations = iterations+1
-            continue
+        # [proposed_grain, PT_oris] = precision_cut(Rough_Guess,ip_data,options)
+        # # is the grain big enough? if not, iterate counters and try again.
+        # if np.size(proposed_grain)[0] < options['min_cut_size']:
+        #     bad_cut_counter = bad_cut_counter +1
+        #     iterations = iterations+1
+        #     continue
 
     #     ## ======== Step 3 ======== ##
     #     # if the grain made it this far, reset the counters and do 5 graph
@@ -408,10 +438,12 @@ def reconstruct_HT_grains(orig_xmap, ip_data, options):
 def call_reconstruction(orig_xmap, options, LT_MDF=None):
     """_summary_
 
+        parent call function that handles calculating in-plane weights and calling recon_grains function
+
     Args:
-        orig_xmap (_type_): _description_
-        options (_type_): _description_
-        LT_MDF (_type_, optional): _description_. Defaults to None.
+        orig_xmap (_type_): ORIX xmap object of input ebsd file
+        options (_type_): dictionary of parameters to be passed from function to function
+        LT_MDF (_type_, optional): old parameter from MATLAB function that was passed from main method. Defaults to None.
     """
 
     # If users provide a misorientation distribution function for the low-temp  phase (LT_MDF), overwrite the saved one with that

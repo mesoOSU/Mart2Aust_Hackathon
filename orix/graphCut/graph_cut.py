@@ -15,6 +15,20 @@ from orix.vector import Vector3d
 
 class graph_cut(object):
     def __init__(self, nrows, ncols_odd, grid, ip_data=None, op_weights=None):
+        """_summary_
+
+        creates a pymaxflow graphFloat object
+        either creates a regular gridded network for extracting connectivity
+        or creates a user-defined network for actual graph cutting
+
+        Args:
+            nrows (_type_): number of rows in ebsd data
+            ncols_odd (_type_): number of odd columns in ebsd data, odd=even in square, but for hex, 
+                                odd is longer row for generating connectivity matrix
+            grid (_type_): descriptor for square or hex ebsd grid data
+            ip_data (_type_, optional): in plane connections and weights used to create user defined graph. Defaults to None.
+            op_weights (_type_, optional):out of plane weights used to create user defined graph. Defaults to None.
+        """
         self.g = maxflow.GraphFloat()
         self.nrows = nrows
         self.ncols_odd = ncols_odd
@@ -36,28 +50,39 @@ class graph_cut(object):
         # self.op_weight
 
     def init_grid_graph(self):
-        ### init grid-based graph to get connectivity
+        """_summary_
+            init grid-based graph to get connectivity
+        """
 
-            ip_weight = 0.01 ### max > ip_weight > min of data as a place to start
+        ip_weight = 0.01 ### max > ip_weight > min of data as a place to start
 
-            # g = maxflow.GraphFloat()
-            if self.grid == 'SqrGrid':
-                self.nodeids = self.g.add_grid_nodes((self.nrows,self.ncols_odd))
-                structure = maxflow.vonNeumann_structure(ndim=2, directed=True) ### square grid structure
-            elif self.grid == 'HexGrid':
-                self.nodeids = self.g.add_grid_nodes((self.nrows, self.ncols_odd))
-                structure = np.array([[0, 1, 1],
-                                    [1, 0, 1],
-                                    [0, 1, 1]]) ### struct for hex grid
-            else:
-                print('define ebsd grid type as "SqrGrid" or "HexGrid"')
-                
-            self.g.add_grid_edges(self.nodeids, ip_weight, structure=structure)
-            self.g.add_grid_tedges(self.nodeids, 1, 0)
+        # g = maxflow.GraphFloat()
+        if self.grid == 'SqrGrid':
+            self.nodeids = self.g.add_grid_nodes((self.nrows,self.ncols_odd))
+            structure = maxflow.vonNeumann_structure(ndim=2, directed=True) ### square grid structure
+        elif self.grid == 'HexGrid':
+            self.nodeids = self.g.add_grid_nodes((self.nrows, self.ncols_odd))
+            structure = np.array([[0, 1, 1],
+                                [1, 0, 1],
+                                [0, 1, 1]]) ### struct for hex grid
+        else:
+            print('define ebsd grid type as "SqrGrid" or "HexGrid"')
+            
+        self.g.add_grid_edges(self.nodeids, ip_weight, structure=structure)
+        self.g.add_grid_tedges(self.nodeids, 1, 0)
 
-            self.nxGraph = self.g.get_nx_graph()
+        self.nxGraph = self.g.get_nx_graph()
 
     def init_user_defined_graph(self, ip_data, op_weights, op_weighting_type='inverse'):
+        """_summary_
+            init graph with user-defined structure - predetermined with grid, but edges need to be made one by one
+            in order to create them with calculated ip weights
+
+        Args:
+            ip_data (_type_): _description_
+            op_weights (_type_): _description_
+            op_weighting_type (str, optional): user selected op weighting depending on style of cut. Defaults to 'inverse'.
+        """
 
         op_weights_arr = np.reshape(op_weights, (self.nrows, self.ncols_odd))
 
