@@ -15,7 +15,7 @@ plt.rcParams.update({"figure.figsize": (7, 7), "font.size": 15})
 
 
 tempdir = '/Pyrepo/Hackathon/maxflow_for_matsci/Data/'
-fname = "steel_ebsd.ang"
+fname = "steel_ebsd_experimental.ang"
 
 target = os.path.join(tempdir, fname)
 
