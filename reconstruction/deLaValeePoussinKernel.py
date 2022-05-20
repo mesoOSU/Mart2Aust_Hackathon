@@ -1,6 +1,6 @@
 """
 Created on Fri May 13, 2022
-@author: StevenEgnaczyk
+@author: Steven Egnaczyk, Jonathan Cappola
 """
 
 import math
@@ -141,72 +141,62 @@ def cut(A):
         numpy.append(returnA[1:], 10 * epsilon)), epsilon))[0]
 
     returnA = A[:numpy.minimum(int(ind + 1), A.size - 1) + 1]  # Added a +1 here!
+    
     # Return the smaller list of Chebyshev coefficients
     return returnA
 
 
 def eval_kernel_odf(odf, g):
 
-    arr1 = [g.a[0], g.b[0], g.c[0], g.d[0]]
-    arr2 = [odf.center.a[0], odf.center.b[0], odf.center.c[0], odf.center.d[0]]
+    # Compute the orix misorientation and the angle between the quats
+    w = g.angle_with_outer(odf.center)
 
-    print(arr1)
-    print(arr2)
-
-    w = Misorientation(np.array([arr1, arr2]))
-
-    w = w.get_distance_matrix()
-
-    print(math.degrees(numpy.amax(w)))
-
-    angle = 2 * math.acos(numpy.amax(w))
-
-    print(angle)
-
-    base = math.cos(angle / 2)
-
-    power = odf.odfKernel.kappa
-
-    print(base)
-
-    print(power)
-
-    print(odf.odfKernel.C)
-
+    # Some math preliminaries
+    base = math.cos(w / 2.0)
+    power = 2.0 * odf.odfKernel.kappa
+    
+    # Evaluate the kernel value directly
     v = odf.odfKernel.C * np.power(base, power)
-
-    print(v)
+    
+    # Divide the result by the CS and SS multiplicities to match MTEX expectation
+    v = v / odf.CS.laue_proper_subgroup.size / odf.SS.laue_proper_subgroup.size
 
     return v
 
 
 def main():
-    odfKernel = generate_kernel(0.04360)
+    """ Test program to show how to generate and evalutate a unimodalODF
+    similar to how MTEX resolves it. This follows the equations of MTEX and
+    those outlined in:
+        The de le Vallee Poussin Standard Orientation Density Function
+        H. Schaeben (1999)
+        https://doi.org/10.1155/TSM.33.365
+    """
+    
+    # Assign the halfwidth value in radians that we want to use
+    hw = numpy.radians(2.50) # Degree value as input, radian as output
+    
+    # Generate the unimodal kernel using the halfwidth
+    odfKernel = generate_kernel(hw)
+    
+    # Construct the crystal and specimen symmetries using orix
+    SS = orix.quaternion.Symmetry([1, 0, 0, 0]) # Triclinic '-1'
+    CS = orix.quaternion.symmetry.get_point_group(225) # Cubic 'm-3m'
 
-    SS = orix.quaternion.Symmetry([1, 0, 0, 0])
-    CS = orix.quaternion.symmetry.get_point_group(225)
+    # Assemble a "center" orientation for the unimodal ODF using orix
+    ori_center = numpy.radians([107.028, 43.8449, 260.180]) # Input degree, output radian
+    center = orix.quaternion.Orientation.from_euler(ori_center, CS, direction='MTEX')
 
-    rad1 = math.radians(107.028)
-    rad2 = math.radians(43.8449)
-    rad3 = math.radians(260.18)
+    # Add the kernel and the center orientation to the odf object - This may need to change later!!!
+    odf = ODF([], [], odfKernel.bandwidth, CS, SS, odfKernel, center)
 
-    data = [rad1, rad2, rad3]
-    center = orix.quaternion.Orientation.from_euler(data, CS)
+    # Assemble a "g" orientation used to evaluate the unimodal ODF using orix
+    ori_g = numpy.radians([106.0, 42.0, 259.0]) # Input degree, output radian
+    g = orix.quaternion.Orientation.from_euler(ori_g, CS, direction='MTEX')
 
+    # Evaluate the ODF at "g"
+    v = eval_kernel_odf(odf, g)
+    
+    return v, odfKernel
 
-    odf = ODF([], [], [], [], [], odfKernel, center)
-
-    rad4 = math.radians(106)
-    rad5 = math.radians(42)
-    rad6 = math.radians(259)
-
-    ori = [rad4, rad5, rad6]
-
-    oriPrime = orix.quaternion.Orientation.from_euler(ori, CS)
-
-    v = eval_kernel_odf(odf, oriPrime)
-
-    return odfKernel
-
-
-kernel = main()
+v, kernel = main()
