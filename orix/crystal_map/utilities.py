@@ -1,134 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-    """
-Authors: Tyler Martin, Eric Payton, and Jonathan Cappola
-Github: martint98 and paytonej
-Dates: 5/16/2022, 7/15/2022, and 8/8/2022
+"""
+Created on Fri Jul 15 09:08:49 2022
+
+@author: paytone
 """
 import numpy as np
-
-def calc_grains(ebsd):
-    '''
-    Segment grains in crystalmap
-    
-
-    Parameters
-    ----------
-    ebsd : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    ebsd : TYPE
-        DESCRIPTION.
-
-    '''
-    from scipy.sparse import csr_matrix, coo_matrix, find
-    from scipy.sparse.csgraph import connected_components
-    import networkx as nx
-    from orix.crystal_map.utilities import spatial_decomposition
-    # subdivide the domain into cells according to the measurement locations,
-    # i.e. by Voronoi teselation or unit cell
-    V, F, I_FD = spatial_decomposition(np.array([ebsd.x, ebsd.y]).T)
-    # V - list of vertices
-    # F - list of faces
-    # D - cell array of cells
-    # I_FD - incidence matrix faces to vertices
-
-    # determine which cells to connect
-    A_Db, A_Do = do_segmentation(I_FD, ebsd)
-    # A_Db - neighbouring cells with grain boundary
-    # A_Do - neighbouring cells without grain boundary
-
-    #then cluster like this:
-    feature_clusters = connected_components(A_Do)
-    feature_clusters = feature_clusters[1]
-
-    # compute grains as connected components of A_Do
-    ## I_DG - incidence matrix cells to grains
-    # I_DG = coo_matrix((np.ones(len(feature_clusters), dtype=np.int32),
-    #                  (np.arange(0,len(feature_clusters), dtype=np.int32), feature_clusters)), 
-    #                  shape=(len(feature_clusters), max(feature_clusters)+1))
-
-    # compute grain ids
-    #grain_id = find(I_DG.T)
-
-    #ebsd.prop.grain_id = feature_clusters
-    ebsd.prop["grain_id"] = feature_clusters
-
-    return ebsd
-
-#-----------------------------------------------------------------------------
-
-def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
-    """
-    Parameters
-    ----------
-    
-    Returns
-    --------
-    # A_Db - adjacency matrix of grain boundaries
-    # A_Do - adjacency matrix inside grain connections
-    
-    """
-    from scipy.sparse import coo_matrix, triu, find
-    import matplotlib.pyplot as plt
-    from orix.crystal_map.utilities import gbc_angle
-    # Output
-    # A_Db - adjacency matrix of grain boundaries
-    # A_Do - adjacency matrix inside grain connections
-
-    # convert gbc value to radians
-    threshold = gbc_value * np.pi / 180.0
-
-    ## if numel(gbcValue) == 1 && length(ebsd.CSList) > 1
-    phase_ids = np.unique(ebsd.phase_id)
-    if np.size(gbc_value) == 1 and len(phase_ids) > 1:
-        ##   gbcValue = repmat(gbcValue,size(ebsd.CSList))
-        threshold = np.repeat(threshold, np.shape(phase_ids))
-
-    # get pairs of neighbouring cells {D_l,D_r} in A_D
-    A_D = I_FD.T * I_FD == 1
-
-    ## [Dl,Dr] = find(triu(A_D,1))
-    Dl, Dr, _  = find(triu(A_D, k=1))          # Get upper triangular part of matrix
-
-    connect = np.zeros(np.shape(Dl), dtype=bool)
-
-    ## for p = 1:numel(ebsd.phaseMap)
-    for p in phase_ids:
-
-        ndx = np.all(np.vstack([ebsd.phase_id[Dl] == p, ebsd.phase_id[Dl] == p]), axis=0)
-
-        connect[ndx] = True        
-
-        # check whether they are indexed
-        ndx = np.all([ndx, ebsd.is_indexed[Dl], ebsd.is_indexed[Dr]])                            # returns index if all true
-
-        # now check for the grain boundary criterion
-        if np.any(ndx):
-
-            connect[ndx] = gbc_angle(ebsd.rotations, ebsd.phases.point_groups[p-1], Dl[ndx], Dr[ndx], threshold)
-
-    # adjacency of pixels that are in different grains
-    A_Do = csr_matrix((np.ones(np.shape(Dl[connect])), (Dl[connect], Dr[connect])), shape=(ebsd.size, ebsd.size))
-    rows, cols = A_Do.nonzero()
-    A_Do[cols, rows] = A_Do[rows, cols] # Make symmetric
-
-    # adjacency of pixels that are in the same grains
-    mask = np.ones(connect.shape, dtype=bool)
-    mask[connect] = False
-    A_Db = coo_matrix((np.ones(np.shape(Dl[mask])), (Dl[mask], Dr[mask])), shape=(ebsd.size, ebsd.size));
-    rows, cols = A_Db.nonzero()
-    A_Db[cols, rows] = A_Db[rows, cols] # Make symmetric
-
-    return A_Db, A_Do
-
-#-----------------------------------------------------------------------------
+import time
+import networkx as nx
+import getopt
+from scipy.sparse import csr_matrix
+from scipy.spatial import ConvexHull, Voronoi, voronoi_plot_2d
+from numpy import arctan2, cumsum, matrix, squeeze, unique, linspace,zeros
+from statistics import mean
+from math import sqrt, floor, copysign
+from orix.quaternion import Orientation, Rotation, symmetry, Misorientation
+from orix.quaternion.rotation import Rotation
+import orix.vector as vect
+from orix.utilities import utilities
+from orix.utilities.utilities import sortrows, regularPoly, uniquerows
+from matplotlib import path
+import matplotlib.pyplot as plt
+import math
+import warnings
+import alphashape
 
 def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 Qs'):
     '''
-    % decompose the spatial domain into cells D with vertices V,
+    % decomposite the spatial domain into cells D with vertices V,
     %
     % Output
     %  V - list of vertices
@@ -139,13 +38,8 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     % V - list of vertices of the Voronoi cells
     % D   - cell array of Vornoi cells with centers X_D ordered accordingly
     '''
-    # Imports
-    from numpy import zeros
-    from scipy.spatial import Voronoi
-    from scipy.sparse import csr_matrix
-    from orix.utilities.utilities import uniquerows
 
-    if unit_cell == None:
+    if unit_cell.all() == None:
         unit_cell = calcUnitCell(X)
         
     # compute the vertices
@@ -154,24 +48,23 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     # implementation. However, Eric and Rohan have confirmed that V and faces
     # at least have the same shape as the MATLAB implementation.
 
-    D = np.empty(len(X),dtype=object)
+    D = np.empty(len(X), dtype=object)
 
     for k in range(X.shape[0]):
         D[k] = faces[k, :]
 
-    else:    
+    else:
         dummy_coordinates = calcBoundary(X, unit_cell, boundary)
 
-        vor = Voronoi(np.vstack([X, dummy_coordinates]), 
-                        qhull_options = qhull_opts) #,'QbB'
+        vor = Voronoi(np.vstack([X, dummy_coordinates]), qhull_options=qhull_opts)  # ,'QbB'
 
-        V = vor.vertices
-        D = vor.regions
-        D = D[0:X.shape[0]]
+        V = vor.vertices                            # vertices of the voronoi diagram
+        D = vor.regions                             # list of faces of the Voronoi cells
+        D = D[0:X.shape[0]]                         # Cut off the dummy coordinates
 
     # now we need some adjacencies and incidences
-    iv = np.hstack(D)        # nodes incident to cells D
-    iid = zeros(len(iv), dtype=np.int64)   # number the cells
+    iv = np.hstack(D)                       # nodes incident to cells D
+    iid = zeros(len(iv), dtype=np.int64)    # number the cells
 
     # Some MATLAB stuff goin on here... : p = [0; cumsum(cellfun('prodofsize',D))];
     D_prod = matlab_prod_of_size(D)
@@ -193,13 +86,14 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     F = np.vstack([iv[:], iv_n[:]]).T
 
     # should be unique (i.e one edge is incident to two cells D)
-    F, _, ie = uniquerows(F)
+    F, ia, ie = uniquerows(F)   # numpy indexing arrays such that edges = F[ia] and F = edges[ie]
 
     # faces incident to cells, F x D
     #original matlab: I_FD = sparse(ie,id,1); 
     # Matlab stores as csr matrix, so we use this class below
     data = np.ones(np.shape(ie))
-    I_FD = csr_matrix( (data, (ie, iid)))
+    I_FD = csr_matrix((data, (ie, iid)))
+
     #I_FD = csr_matrix( (data, (ie, iid)), shape=[ie.shape[0], ie.shape[0]]) # could also use csc_matrix() if it improves
                                 # performance !
     '''
@@ -208,13 +102,15 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
           
           Could also be causing problems in the Householder matrix initialization.
     '''
+
     return V, F, I_FD
+
 
 def calcBoundary(X, unit_cell, boundary='hull'):
     '''
     dummy coordinates so that the voronoi-cells of X are finite
 
-    Parameters:
+    Inputs:
     --------------
     X : n x 2 numpy array of [x,y] vertex coordinates
 
@@ -238,18 +134,6 @@ def calcBoundary(X, unit_cell, boundary='hull'):
     from statistics import mean
     from math import sqrt, floor, copysign
     '''
-    # Imports
-    import getopt
-    import numpy as np
-    from scipy.spatial import ConvexHull
-    from numpy import arctan2, cumsum, matrix, squeeze, unique, linspace
-    from statistics import mean
-    from math import sqrt, floor, copysign
-    from orix.quaternion.rotation import Rotation
-    import orix.vector as vect
-    from orix.utilities.utilities import uniquerows
-    import alphashape
-    from matplotlib import path
     
     dummy_coordinates = []
 
@@ -440,11 +324,6 @@ def erase_linearly_dependent_points(X, k):
     --------------
     from scipy.spatial import ConvexHull
     '''
-    from orix.utilities.utilities import regularPoly
-    import numpy as np
-    from scipy.spatial import ConvexHull
-    from orix.utilities.utilities import sortrows
-    import alphashape
 
     # erase all linear dependent points
     angle = np.arctan2(X[k[0:-1],0]-X[k[1:],0],
@@ -493,9 +372,6 @@ def left_hand_assignment(X, a):
     --------------
     import numpy as np
     '''
- 
-    import numpy as np
-    import warnings
     
     if a.dtype != 'int32' or 'int64':
         warnings.warn('parameter ''a'' must be of integer type. Converting ''a'' into integers and moving on...')
@@ -522,21 +398,87 @@ def matlabdiff(myArray):
 
 # ----------------------------------------------------------------------------
 
-def gbc_angle(q1, s1, Dl, Dr, threshold):
-     # still needs **kwargs to enable two misorientation angle choices like MTEX
-     qs = Orientation(q1,s1)
-     qs = qs.map_into_symmetry_reduced_zone
+def gbc_angle(q, CS, D_l, D_r, threshold=5.):
+    '''
+    THIS IS AN INITIAL DRAFT TRANSLATION OF GMTEX's BC_ANGLE
+    
+    
+    # the inputs are: quaternion(ebsd.rotations),ebsd.CSList{p},Dl(ndx),Dr(ndx),gbcValue(p),varargin{:})
 
-     o1 = qs[Dl]
-     o2 = qs[Dr]
-
-     mis = o1*~o2 #angle(orientation(q(Dl),CS),orientation(q(Dr),CS))
-
-     #print(d.angle) 
-     # if np.ndarray.size(threshold) == 1:
-     criterion = mis.angle < threshold
-
-     return criterion
+    
+    #% FOR TESTING
+    ################## load materials and image 
+    # this whole section will be replaced by graph cut function eventually
+    path = r'/Users/paytone/Documents/GitHub/maxflow_for_matsci/Data/steel_ebsd.ang'
+    
+    # Read each column from the file
+    euler1, euler2, euler3, x, y, iq, dp, phase_id, sem, fit  = np.loadtxt(path, unpack=True)
+    
+    phase_id = np.int32(phase_id)
+    
+    # Create a Rotation object from Euler angles
+    euler_angles = np.column_stack((euler1, euler2, euler3))
+    rotations = Rotation.from_euler(euler_angles)
+    
+    # Create a property dictionary
+    properties = dict(iq=iq, dp=dp)
+    
+    # Create unit cells of the phases
+    structures = [
+        Structure(
+            title="ferrite",
+            atoms=[Atom("fe", [0] * 3)],
+            lattice=Lattice(0.287, 0.287, 0.287, 90, 90, 90)
+        ),
+    ]
+    phase_list = PhaseList(
+        names=["ferrite"],
+        point_groups=["432"],
+        structures=structures,
+    )
+    
+    # Create a CrystalMap instance
+    xmap2 = CrystalMap(
+        rotations=rotations,
+        phase_id=phase_id,
+        x=x,
+        y=y,
+        phase_list=phase_list,
+        prop=properties,
+    )
+    xmap2.scan_unit = "um"
+    
+    import numpy
+    
+    #% get pairs of neighbouring cells {D_l,D_r} in A_D
+    #A_D = I_FD'*I_FD==1;
+    #[Dl,Dr] = find(triu(A_D,1));
+    '''
+    
+    # convert threshold into radians
+    threshold = threshold * np.pi / 180.
+    
+    
+    # now check whether the have a misorientation heigher or lower than a threshold
+    o1 = q[D_l] # orientation of node u
+    o2 = q[D_r] # orientation of node v
+    m = Misorientation(o1 * o2.conj) # misorientations between every u and v
+    m.symmetry = (CS, CS) # Oh is symmetry (need to un-hard code)
+    m = m.map_into_symmetry_reduced_zone() #TODO: The result of this doesn't actually make sense. Why are there two rows?
+    
+    criterion = np.abs(m[0,:].angle) > np.cos(threshold/2.0)
+    
+    # Part of mtex code; purpose not clear:
+    #if np.any(~criterion):
+    #  qcs = symm_l.proper_subgroup #TODO: Look into whether this actually makes sense, would be best to use the same symmetry for both L and R but it wasn't clear how to do this in orix at this time
+    #  criterion[~criterion] = np.amax(np.abs(Rotation.dot_outer(m[~criterion],qcs)), axis=1) > np.cos(threshold/2.);
+    
+    # Here is how mtex gets criterion using orientations, not yet possible in orix
+    # o_Dl = orientation(q(Dl),CS,symmetry);
+    # o_Dr = orientation(q(Dr),CS,symmetry);
+    # criterion = dot(o_Dl,o_Dr) > cos(threshold/2);
+    
+    return criterion
 
 # ----------------------------------------------------------------------------
 
@@ -558,7 +500,6 @@ def householderMatrix(v):
     H_test = householderMatrix(H_in)
 
     '''
-    import numpy as np
     # H = @(v) eye(3) - 2./(v(:)'*v(:))*(v(:)*v(:)') ;
     v = np.atleast_2d(v)
     H = np.eye(3) - 2. / np.matmul(v, v.T) * np.matmul(v.T, v)
@@ -583,7 +524,6 @@ def translationMatrix(s):
     T_in = np.loadtxt('translation_input.txt', delimiter=',')
     T_test = translationMatrix(T_in)
     '''
-    import numpy as np
     T  = np.array([[ 1., 0., s[0]],[0., 1., s[1]],[0., 0., 1.]])
     return T
 
@@ -612,12 +552,7 @@ def generateUnitCells(xy, unitCell):
     plt.axis('equal')
     plt.show
     '''
-    import numpy as np
-    from orix.utilities.utilities import sortrows
-    from orix.utilities import utilities
-
     def clockwise_sort(points_list):
-        import math
 
         def angle_to(point):
         # assumes already mapped to (0,0) center
@@ -670,10 +605,6 @@ def calcUnitCell(xy, *args):
     '''
     Compute the unit cell for an EBSD data set
     '''
-    
-    import numpy as np
-    from scipy.spatial import Voronoi
-    
     # isempty return
     ## NOT WRITTEN
     
@@ -769,7 +700,6 @@ def subSample(xy, N):
     '''
     Find a square subset of about N points
     '''
-    import numpy as np
     
     xminmax = np.vstack([np.min(xy[:,0]), np.max(xy[:,0])])
     yminmax = np.vstack([np.min(xy[:,1]), np.max(xy[:,1])])
@@ -793,9 +723,6 @@ def polyArea(x,y):
     return 0.50*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
 
 def isRegularPoly(unitCell):
-    
-    import numpy as np
-    
     # Compute the side lengths of all the "edges"
     sideLength = np.sqrt(np.sum(np.power(unitCell,2), axis=1))
     sides = sideLength.size
@@ -814,5 +741,3 @@ def isRegularPoly(unitCell):
                 (np.linalg.norm(enclosingAngle - np.mean(enclosingAngle)) < np.deg2rad(0.05))
     
     return isRegular
-
-
