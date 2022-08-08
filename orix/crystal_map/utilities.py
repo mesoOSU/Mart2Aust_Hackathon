@@ -9,7 +9,8 @@ import numpy as np
 import time
 import networkx as nx
 import getopt
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, coo_matrix, find, triu
+from scipy.sparse.csgraph import connected_components
 from scipy.spatial import ConvexHull, Voronoi, voronoi_plot_2d
 from numpy import arctan2, cumsum, matrix, squeeze, unique, linspace,zeros
 from statistics import mean
@@ -24,6 +25,8 @@ import matplotlib.pyplot as plt
 import math
 import warnings
 import alphashape
+import networkx as nx
+import matplotlib.pyplot as plt
 
 def calc_grains(ebsd):
     '''
@@ -41,10 +44,7 @@ def calc_grains(ebsd):
         DESCRIPTION.
 
     '''
-    from scipy.sparse import csr_matrix, coo_matrix, find
-    from scipy.sparse.csgraph import connected_components
-    import networkx as nx
-    from orix.crystal_map.utilities import spatial_decomposition
+
     # subdivide the domain into cells according to the measurement locations,
     # i.e. by Voronoi teselation or unit cell
     V, F, I_FD = spatial_decomposition(np.array([ebsd.x, ebsd.y]).T)
@@ -89,9 +89,7 @@ def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
     # A_Do - adjacency matrix inside grain connections
     
     """
-    from scipy.sparse import coo_matrix, triu, find
-    import matplotlib.pyplot as plt
-    from orix.crystal_map.utilities import gbc_angle
+
     # Output
     # A_Db - adjacency matrix of grain boundaries
     # A_Do - adjacency matrix inside grain connections
