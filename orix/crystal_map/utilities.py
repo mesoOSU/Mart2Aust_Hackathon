@@ -25,6 +25,125 @@ import math
 import warnings
 import alphashape
 
+def calc_grains(ebsd):
+    '''
+    Segment grains in crystalmap
+    
+
+    Parameters
+    ----------
+    ebsd : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    ebsd : TYPE
+        DESCRIPTION.
+
+    '''
+    from scipy.sparse import csr_matrix, coo_matrix, find
+    from scipy.sparse.csgraph import connected_components
+    import networkx as nx
+    from orix.crystal_map.utilities import spatial_decomposition
+    # subdivide the domain into cells according to the measurement locations,
+    # i.e. by Voronoi teselation or unit cell
+    V, F, I_FD = spatial_decomposition(np.array([ebsd.x, ebsd.y]).T)
+    # V - list of vertices
+    # F - list of faces
+    # D - cell array of cells
+    # I_FD - incidence matrix faces to vertices
+
+    # determine which cells to connect
+    A_Db, A_Do = do_segmentation(I_FD, ebsd)
+    # A_Db - neighbouring cells with grain boundary
+    # A_Do - neighbouring cells without grain boundary
+
+    #then cluster like this:
+    feature_clusters = connected_components(A_Do)
+    feature_clusters = feature_clusters[1]
+
+    # compute grains as connected components of A_Do
+    ## I_DG - incidence matrix cells to grains
+    # I_DG = coo_matrix((np.ones(len(feature_clusters), dtype=np.int32),
+    #                  (np.arange(0,len(feature_clusters), dtype=np.int32), feature_clusters)), 
+    #                  shape=(len(feature_clusters), max(feature_clusters)+1))
+
+    # compute grain ids
+    #grain_id = find(I_DG.T)
+
+    #ebsd.prop.grain_id = feature_clusters
+    ebsd.prop["grain_id"] = feature_clusters
+
+    return ebsd
+
+#-----------------------------------------------------------------------------
+
+def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
+    """
+    Parameters
+    ----------
+    
+    Returns
+    --------
+    # A_Db - adjacency matrix of grain boundaries
+    # A_Do - adjacency matrix inside grain connections
+    
+    """
+    from scipy.sparse import coo_matrix, triu, find
+    import matplotlib.pyplot as plt
+    from orix.crystal_map.utilities import gbc_angle
+    # Output
+    # A_Db - adjacency matrix of grain boundaries
+    # A_Do - adjacency matrix inside grain connections
+
+    # convert gbc value to radians
+    threshold = gbc_value * np.pi / 180.0
+
+    ## if numel(gbcValue) == 1 && length(ebsd.CSList) > 1
+    phase_ids = np.unique(ebsd.phase_id)
+    if np.size(gbc_value) == 1 and len(phase_ids) > 1:
+        ##   gbcValue = repmat(gbcValue,size(ebsd.CSList))
+        threshold = np.repeat(threshold, np.shape(phase_ids))
+
+    # get pairs of neighbouring cells {D_l,D_r} in A_D
+    A_D = I_FD.T * I_FD == 1
+
+    ## [Dl,Dr] = find(triu(A_D,1))
+    Dl, Dr, _  = find(triu(A_D, k=1))          # Get upper triangular part of matrix
+
+    connect = np.zeros(np.shape(Dl), dtype=bool)
+
+    ## for p = 1:numel(ebsd.phaseMap)
+    for p in phase_ids:
+
+        ndx = np.all(np.vstack([ebsd.phase_id[Dl] == p, ebsd.phase_id[Dl] == p]), axis=0)
+
+        connect[ndx] = True        
+
+        # check whether they are indexed
+        ndx = np.all([ndx, ebsd.is_indexed[Dl], ebsd.is_indexed[Dr]])                            # returns index if all true
+
+        # now check for the grain boundary criterion
+        if np.any(ndx):
+
+            connect[ndx] = gbc_angle(ebsd.rotations, ebsd.phases.point_groups[p-1], Dl[ndx], Dr[ndx], threshold)
+
+    # adjacency of pixels that are in different grains
+    A_Do = csr_matrix((np.ones(np.shape(Dl[connect])), (Dl[connect], Dr[connect])), shape=(ebsd.size, ebsd.size))
+    rows, cols = A_Do.nonzero()
+    A_Do[cols, rows] = A_Do[rows, cols] # Make symmetric
+
+    # adjacency of pixels that are in the same grains
+    mask = np.ones(connect.shape, dtype=bool)
+    mask[connect] = False
+    A_Db = coo_matrix((np.ones(np.shape(Dl[mask])), (Dl[mask], Dr[mask])), shape=(ebsd.size, ebsd.size));
+    rows, cols = A_Db.nonzero()
+    A_Db[cols, rows] = A_Db[rows, cols] # Make symmetric
+
+    return A_Db, A_Do
+
+#-----------------------------------------------------------------------------
+
 def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 Qs'):
     '''
     % decomposite the spatial domain into cells D with vertices V,
@@ -39,7 +158,7 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     % D   - cell array of Vornoi cells with centers X_D ordered accordingly
     '''
 
-    if unit_cell.all() == None:
+    if unit_cell == None:
         unit_cell = calcUnitCell(X)
         
     # compute the vertices
@@ -398,87 +517,21 @@ def matlabdiff(myArray):
 
 # ----------------------------------------------------------------------------
 
-def gbc_angle(q, CS, D_l, D_r, threshold=5.):
-    '''
-    THIS IS AN INITIAL DRAFT TRANSLATION OF GMTEX's BC_ANGLE
-    
-    
-    # the inputs are: quaternion(ebsd.rotations),ebsd.CSList{p},Dl(ndx),Dr(ndx),gbcValue(p),varargin{:})
+def gbc_angle(q1, s1, Dl, Dr, threshold):
+     # still needs **kwargs to enable two misorientation angle choices like MTEX
+     qs = Orientation(q1,s1)
+     qs = qs.map_into_symmetry_reduced_zone
 
-    
-    #% FOR TESTING
-    ################## load materials and image 
-    # this whole section will be replaced by graph cut function eventually
-    path = r'/Users/paytone/Documents/GitHub/maxflow_for_matsci/Data/steel_ebsd.ang'
-    
-    # Read each column from the file
-    euler1, euler2, euler3, x, y, iq, dp, phase_id, sem, fit  = np.loadtxt(path, unpack=True)
-    
-    phase_id = np.int32(phase_id)
-    
-    # Create a Rotation object from Euler angles
-    euler_angles = np.column_stack((euler1, euler2, euler3))
-    rotations = Rotation.from_euler(euler_angles)
-    
-    # Create a property dictionary
-    properties = dict(iq=iq, dp=dp)
-    
-    # Create unit cells of the phases
-    structures = [
-        Structure(
-            title="ferrite",
-            atoms=[Atom("fe", [0] * 3)],
-            lattice=Lattice(0.287, 0.287, 0.287, 90, 90, 90)
-        ),
-    ]
-    phase_list = PhaseList(
-        names=["ferrite"],
-        point_groups=["432"],
-        structures=structures,
-    )
-    
-    # Create a CrystalMap instance
-    xmap2 = CrystalMap(
-        rotations=rotations,
-        phase_id=phase_id,
-        x=x,
-        y=y,
-        phase_list=phase_list,
-        prop=properties,
-    )
-    xmap2.scan_unit = "um"
-    
-    import numpy
-    
-    #% get pairs of neighbouring cells {D_l,D_r} in A_D
-    #A_D = I_FD'*I_FD==1;
-    #[Dl,Dr] = find(triu(A_D,1));
-    '''
-    
-    # convert threshold into radians
-    threshold = threshold * np.pi / 180.
-    
-    
-    # now check whether the have a misorientation heigher or lower than a threshold
-    o1 = q[D_l] # orientation of node u
-    o2 = q[D_r] # orientation of node v
-    m = Misorientation(o1 * o2.conj) # misorientations between every u and v
-    m.symmetry = (CS, CS) # Oh is symmetry (need to un-hard code)
-    m = m.map_into_symmetry_reduced_zone() #TODO: The result of this doesn't actually make sense. Why are there two rows?
-    
-    criterion = np.abs(m[0,:].angle) > np.cos(threshold/2.0)
-    
-    # Part of mtex code; purpose not clear:
-    #if np.any(~criterion):
-    #  qcs = symm_l.proper_subgroup #TODO: Look into whether this actually makes sense, would be best to use the same symmetry for both L and R but it wasn't clear how to do this in orix at this time
-    #  criterion[~criterion] = np.amax(np.abs(Rotation.dot_outer(m[~criterion],qcs)), axis=1) > np.cos(threshold/2.);
-    
-    # Here is how mtex gets criterion using orientations, not yet possible in orix
-    # o_Dl = orientation(q(Dl),CS,symmetry);
-    # o_Dr = orientation(q(Dr),CS,symmetry);
-    # criterion = dot(o_Dl,o_Dr) > cos(threshold/2);
-    
-    return criterion
+
+     o1 = qs[Dl]
+     o2 = qs[Dr]
+
+     mis = o1*~o2 #angle(orientation(q(Dl),CS),orientation(q(Dr),CS))
+
+     # if np.ndarray.size(threshold) == 1:
+     criterion = mis.angle < threshold
+
+     return criterion
 
 # ----------------------------------------------------------------------------
 
