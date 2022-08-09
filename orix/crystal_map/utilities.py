@@ -192,7 +192,7 @@ def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
 
 #-----------------------------------------------------------------------------
 
-def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 Qs'):
+def spatial_decomposition(X, grid_cell=None, boundary='hull', qhull_opts='Q5 Q6 Qs'):
     '''
     % decomposite the spatial domain into cells D with vertices V,
     %
@@ -206,31 +206,38 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     % D   - cell array of Vornoi cells with centers X_D ordered accordingly
     '''
 
-    if unit_cell == None:
-        unit_cell = calcUnitCell(X)
+    if grid_cell == None:
         
-    # compute the vertices
-    [V, faces] = generateUnitCells(X, unit_cell)
-    # NOTE: V and faces do not give exact values as compared to the MATLAB
-    # implementation. However, Eric and Rohan have confirmed that V and faces
-    # at least have the same shape as the MATLAB implementation.
-
-    list_D = vor.regions                  # list of faces of the Voronoi cells
-    D = [np.array(x) for x in list_D]
-
-    for k in range(X.shape[0]):
-        D[k] = faces[k, :]
+        unit_cell = calcUnitCell(X)
+    
+    if grid_cell != None: # then assume the user is supplying a grid 'unit cell'
+        
+        unit_cell = grid_cell
+        
+        # compute the vertices
+        [V, faces] = generateUnitCells(X, unit_cell)
+        # NOTE: V and faces do not give exact values as compared to the MATLAB
+        # implementation. However, Eric and Rohan have confirmed that V and faces
+        # at least have the same shape as the MATLAB implementation.
+    
+        list_D = vor.regions                  # list of faces of the Voronoi cells
+        D = [np.array(x) for x in list_D]
+    
+        for k in range(X.shape[0]):
+            D[k] = faces[k, :]
 
     else:
+        
         dummy_coordinates = calcBoundary(X, unit_cell, boundary)
-
+    
         vor = Voronoi(np.vstack([X, dummy_coordinates]), qhull_options=qhull_opts)  # ,'QbB'
-
+    
         V = vor.vertices                            # vertices of the voronoi diagram
         list_D = vor.regions                        # list of faces of the Voronoi cells
         D = [np.array(x) for x in list_D]
-        cells = D.copy()
-        cells = cells[0:X.shape[0]]     # Cut off the dummy coordinates
+    
+    cells = D.copy()
+    cells = cells[0:X.shape[0]]     # Cut off the dummy coordinates
 
     # now we need some adjacencies and incidences
     iv = np.hstack(cells)                      # nodes incident to cells D
@@ -590,7 +597,7 @@ def gbc_angle(q1, s1, Dl, Dr, threshold):
     # still needs **kwargs to enable two misorientation angle choices like MTEX
      
     qs = Orientation(q1,s1)
-    qs = qs.map_into_symmetry_reduced_zone()
+    #qs = qs.map_into_symmetry_reduced_zone()
     
     
     o1 = qs[Dl]
@@ -598,11 +605,10 @@ def gbc_angle(q1, s1, Dl, Dr, threshold):
     
     # Original matlab: mis = angle(orientation(q(Dl),CS),orientation(q(Dr),CS))
     mis = o1-o2
-    #mis = mis.map_into_symmetry_reduced_zone() #TODO: When a misorientation class is created, it should be used here
-    
+    mis = mis.map_into_symmetry_reduced_zone(s1) #TODO: When a misorientation class is created, it should be used here
     
     # if np.ndarray.size(threshold) == 1:
-    criterion = mis.angle > threshold #FIXME: mtex uses cos(threshold/2)... why?
+    criterion = mis.angle > np.cos(threshold / 2.0) #FIXME: mtex uses cos(threshold/2)... why?
     
     return criterion
 
