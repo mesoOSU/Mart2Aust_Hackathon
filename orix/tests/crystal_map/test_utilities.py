@@ -6,15 +6,15 @@ import pytest
 
 class TestClass:
     def test_spatial_decomposition(self):
-        with open(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/X.pickle", "rb") as my_pickle_jar:
+        with open(f"C:/PyRepo/Hackathon/Mart2Aust_Hackathon/spatial_decomposition_test_folder/X.pickle", "rb") as my_pickle_jar:
             self.X = pickle.load(my_pickle_jar)
-        with open("C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/unitcell.pickle", "rb") as my_pickle_jar:
+        with open("C:/PyRepo/Hackathon/Mart2Aust_Hackathon/spatial_decomposition_test_folder/unitcell.pickle", "rb") as my_pickle_jar:
             self.uc = pickle.load(my_pickle_jar)
-        with open(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/V.pickle", "rb") as my_pickle_jar:
+        with open(f"C:/PyRepo/Hackathon/Mart2Aust_Hackathon/spatial_decomposition_test_folder/V.pickle", "rb") as my_pickle_jar:
             self.V = pickle.load(my_pickle_jar)
-        with open(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/F.pickle", "rb") as my_pickle_jar:
+        with open(f"C:/PyRepo/Hackathon/Mart2Aust_Hackathon/spatial_decomposition_test_folder/F.pickle", "rb") as my_pickle_jar:
             self.F = pickle.load(my_pickle_jar)
-        with open(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/I_FD.pickle", "rb") as my_pickle_jar:
+        with open(f"C:/PyRepo/Hackathon/Mart2Aust_Hackathon/spatial_decomposition_test_folder/I_FD.pickle", "rb") as my_pickle_jar:
             self.I_FD = pickle.load(my_pickle_jar)
 
         self.actual_V, self.actual_F, self.actual_I_FD = utilities.spatial_decomposition(self.X, self.uc)

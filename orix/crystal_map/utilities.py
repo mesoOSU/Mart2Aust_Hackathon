@@ -157,7 +157,7 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     % D   - cell array of Vornoi cells with centers X_D ordered accordingly
     '''
 
-    if unit_cell == None:
+    if unit_cell.all() == None:
         unit_cell = calcUnitCell(X)
         
     # compute the vertices
@@ -177,7 +177,8 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
         vor = Voronoi(np.vstack([X, dummy_coordinates]), qhull_options=qhull_opts)  # ,'QbB'
 
         V = vor.vertices                            # vertices of the voronoi diagram
-        D = np.array(vor.regions, dtype=np.float32)                             # list of faces of the Voronoi cells
+        list_D = vor.regions                             # list of faces of the Voronoi cells
+        D = [np.array(x) for x in list_D]
         print(f"shape D from Vor = {np.shape(D)}")
         print(f"type D = {type(D)}")
         cells = D.copy()
@@ -233,10 +234,12 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     # print(f"cells[:][:] = {cells[:][:]}")
     my_ind = cells[0][:]
     print(f"Cell vertices = {V[my_ind]}")
-    cells_x = V[cells[0][:]][:, 0]
-    cells_y = V[cells[0][:]][:, 1]
-    print(f"cells_x = {cells_x}")
-    print(f"cells_y = {cells_y}")
+    cells_x = [V[cells[i][:]][:, 0] for i in range(len(cells))]
+    # cells_x = V[cells[0][:]][:, 0]
+    # cells_y = V[cells[0][:]][:, 1]
+    cells_y = [V[cells[i][:]][:, 1] for i in range(len(cells))]
+    # print(f"cells_x = {cells_x}")
+    # print(f"cells_y = {cells_y}")
     print(f"shape cellsx = {np.shape(cells_x)}")
     print(f"shape cellsy = {np.shape(cells_y)}")
 
