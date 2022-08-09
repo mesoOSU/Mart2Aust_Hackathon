@@ -206,7 +206,7 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     % D   - cell array of Vornoi cells with centers X_D ordered accordingly
     '''
 
-    if unit_cell.all() == None:
+    if unit_cell == None:
         unit_cell = calcUnitCell(X)
         
     # compute the vertices
@@ -215,8 +215,9 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     # implementation. However, Eric and Rohan have confirmed that V and faces
     # at least have the same shape as the MATLAB implementation.
 
-    D = np.empty(len(X), dtype=object)
-    print(f"len X = {len(X)}")
+    list_D = vor.regions                  # list of faces of the Voronoi cells
+    D = [np.array(x) for x in list_D]
+
     for k in range(X.shape[0]):
         D[k] = faces[k, :]
 
@@ -226,22 +227,14 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
         vor = Voronoi(np.vstack([X, dummy_coordinates]), qhull_options=qhull_opts)  # ,'QbB'
 
         V = vor.vertices                            # vertices of the voronoi diagram
-        list_D = vor.regions                             # list of faces of the Voronoi cells
+        list_D = vor.regions                        # list of faces of the Voronoi cells
         D = [np.array(x) for x in list_D]
-        print(f"shape D from Vor = {np.shape(D)}")
-        print(f"type D = {type(D)}")
         cells = D.copy()
-        cells = cells[0:X.shape[0]]                         # Cut off the dummy coordinates
-        print(f"shape cells from cut = {np.shape(cells)}")
-        print(f"cells[:10] = {cells[:10]}")
+        cells = cells[0:X.shape[0]]     # Cut off the dummy coordinates
 
     # now we need some adjacencies and incidences
-    iv = np.hstack(cells)                       # nodes incident to cells D
-    print(f"iv = {iv}")
-    print(f"iv[:10] = {iv[:10]}")
-    print(f"shape iv (nodes incident to cells D) = {np.shape(iv)}")
+    iv = np.hstack(cells)                      # nodes incident to cells D
     iid = zeros(len(iv), dtype=np.int64)    # number the cells
-    print(f"shape iid (cell numbers) = {np.shape(iid)}")
 
     # Some MATLAB stuff goin on here... : p = [0; cumsum(cellfun('prodofsize',D))];
     D_prod = matlab_prod_of_size(cells)
@@ -279,46 +272,9 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
           
           Could also be causing problems in the Householder matrix initialization.
     '''
-    print(f"shape cells for testing = {np.shape(cells)}")
-    # print(f"cells[:][:] = {cells[:][:]}")
-    my_ind = cells[0][:]
-    print(f"Cell vertices = {V[my_ind]}")
-    cells_x = [V[cells[i][:]][:, 0] for i in range(len(cells))]
-    # cells_x = V[cells[0][:]][:, 0]
-    # cells_y = V[cells[0][:]][:, 1]
-    cells_y = [V[cells[i][:]][:, 1] for i in range(len(cells))]
-    # print(f"cells_x = {cells_x}")
-    # print(f"cells_y = {cells_y}")
-    print(f"shape cellsx = {np.shape(cells_x)}")
-    print(f"shape cellsy = {np.shape(cells_y)}")
-
-    # fig = plt.figure()
-    # # fig, (ax1, ax2) = plt.subplots(1, 2)
-    # start_time = time.time()
-    # # ax1.plot(faces_x_coords[6:11], faces_y_coords[6:11])
-    # # ax1.set_title(f"Plot")
-    # # ax1.set_xlabel(f"Microns?")
-    # # ax1.set_ylabel(f"Microns?")
-    # # ax2.scatter(faces_x_coords[6:11], faces_y_coords[6:11])
-    # for i in tqdm(range(int(len(cells)/32)), desc="Plotting cells"):
-    #     cells_x = V[cells[i][:]][:, 0]
-    #     cells_y = V[cells[i][:]][:, 1]
-    #     plt.scatter(cells_x, cells_y, s=0.0001)
-    # print(f"cells type = {type(cells)}")
-    # print(f"cells x y type = {type(cells_x)}")
-    # # ax2.set_title(f"Scatter")
-    # # ax2.set_xlabel(f"Microns?")
-    # end_time = time.time()
-    # time_to_plot = end_time - start_time
-    # fig.suptitle(f"Scatter Plot of Face Endpoints ({round(time_to_plot, 3)}s)")
-    # # plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/Line Plot Test.tiff", dpi=4000)
-    # plt.savefig(f"C:/PyRepo/hackathon/Mart2Aust_Hackathon/orix/tests/crystal_map/Scatter Plot Test.tiff", dpi=1200)
-    # plt.show()
-
-    print(f"dummy_coordinates = {dummy_coordinates}")
-
-    # fig, ax = plt.subplots()
-    # ax.scatter(dummy_coordinates)
+    
+    #cells_x = [V[cells[i][:]][:, 0] for i in range(len(cells))]
+    #cells_y = [V[cells[i][:]][:, 1] for i in range(len(cells))]
 
     return V, F, I_FD
 
