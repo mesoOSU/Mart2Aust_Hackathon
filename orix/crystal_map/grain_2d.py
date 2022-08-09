@@ -160,18 +160,18 @@ class grain2d:
 
 
 def main():
-    X = np.loadtxt(
-        'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\spatialDecomposition_input_X.csv',
-        delimiter=',', dtype=float)
-    uc = np.loadtxt(
-        'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\calcUnitCell_output_unitCell.csv',
-        delimiter=',', dtype=float)
     # X = np.loadtxt(
-    #     'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
-    #     'spatialDecomposition_input_X.csv', delimiter=',', dtype=float)
+    #     'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\spatialDecomposition_input_X.csv',
+    #     delimiter=',', dtype=float)
     # uc = np.loadtxt(
-    #     'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
-    #     'calcUnitCell_output_unitCell.csv', delimiter=',', dtype=float)
+    #     'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\calcUnitCell_output_unitCell.csv',
+    #     delimiter=',', dtype=float)
+    X = np.loadtxt(
+        'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
+        'spatialDecomposition_input_X.csv', delimiter=',', dtype=float)
+    uc = np.loadtxt(
+        'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
+        'calcUnitCell_output_unitCell.csv', delimiter=',', dtype=float)
     # ebsd_path = "C:\\PyRepo\\measureGrainSize\\GS_Meas\\myEBSD_high_res_1.mat"
     # ebsd = loadmat(ebsd_path)
     # ebsd_x_path = "C:\\PyRepo\\measureGrainSize\\GS_Meas\\myEBSD_high_res_1_x.mat"
@@ -219,31 +219,45 @@ def main():
     plt.style.use('dark_background')
     plt.rc('axes', axisbelow=True)
 
-    plt.figure()
-    start_time = time.time()
-    plt.plot(faces_x_coords[:100000], faces_y_coords[:100000])
-    # plt.scatter(face_x_coords, face_y_coords)
-    end_time = time.time()
-    time_to_plot = end_time - start_time
-    plt.title(f"Line Plot of Face Endpoints ({round(time_to_plot, 3)}s)")
-    plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/Line Plot Test.tiff", dpi=4000)
-    plt.show()
+    print(f"nonzero_count = {I_FD.count_nonzero()}")
+    print(f"indices of non zero elements = {I_FD.nonzero()}")
+    print(f"myFirst5Incidences = {I_FD[:5]}")
+    print(f"myshape = {np.shape(I_FD)}")
+    print(f"My raw points = {V[F[:15]]}")
+    print(f"My points = {faces[:6]}")
+
+    # fig, (ax1, ax2) = plt.subplots(1, 2)
+    # start_time = time.time()
+    # ax1.plot(faces_x_coords[6:11], faces_y_coords[6:11])
+    # ax1.set_title(f"Plot")
+    # ax1.set_xlabel(f"Microns?")
+    # ax1.set_ylabel(f"Microns?")
+    # ax2.scatter(faces_x_coords[6:11], faces_y_coords[6:11])
+    # ax2.set_title(f"Scatter")
+    # ax2.set_xlabel(f"Microns?")
+    # end_time = time.time()
+    # time_to_plot = end_time - start_time
+    # fig.suptitle(f"Line Plot of Face Endpoints ({round(time_to_plot, 3)}s)")
+    # # plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/Line Plot Test.tiff", dpi=4000)
+    # plt.savefig(f"C:/PyRepo/hackathon/Mart2Aust_Hackathon/orix/tests/crystal_map/Line Plot Test.tiff", dpi=1200)
+    # plt.show()
 
     # start_time = time.time()
     # plt.figure()
-    # plt.scatter(V[:, 0], V[:, 1], c='red', s=0.0001)
+    # plt.scatter(V[:, 0], V[:, 1], c='red', s=0.01)
     # plt.ylabel(r'microns?, $[/micron/m]$', fontsize=18)
     # plt.xlabel('microns', fontsize=18)
-    # plt.ylim([0,100])
-    # plt.yticks(fontsize=16, rotation=0)
-    # plt.xticks(fontsize=16, rotation=0)
-    # plt.grid()
-    # plt.box(on=False)
-    # plt.tight_layout()
-    # plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/test1.tiff", dpi=4000)
+    # # plt.ylim([0,100])
+    # # plt.yticks(fontsize=16, rotation=0)
+    # # plt.xticks(fontsize=16, rotation=0)
+    # # plt.grid()
+    # # plt.box(on=False)
+    # # plt.tight_layout()
+    # # plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/test1.tiff", dpi=4000)
+    # plt.savefig(f"C:/PyRepo/Hackathon/Mart2Aust_Hackathon/orix/tests/crystal_map/test1.tiff", dpi=4000)
     # end_time = time.time()
     # plt.show()
-    # print(f"Time to plot vertices = {end_time - start_time}")
+    # # print(f"Time to plot vertices = {end_time - start_time}")
     #
     #
     # scaled_F = F/1000

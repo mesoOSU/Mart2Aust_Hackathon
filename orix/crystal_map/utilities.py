@@ -7,6 +7,7 @@ Created on Fri Jul 15 09:08:49 2022
 """
 import numpy as np
 import time
+from tqdm import tqdm
 import networkx as nx
 import getopt
 from scipy.sparse import csr_matrix, coo_matrix, find, triu
@@ -166,7 +167,7 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     # at least have the same shape as the MATLAB implementation.
 
     D = np.empty(len(X), dtype=object)
-
+    print(f"len X = {len(X)}")
     for k in range(X.shape[0]):
         D[k] = faces[k, :]
 
@@ -176,19 +177,28 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
         vor = Voronoi(np.vstack([X, dummy_coordinates]), qhull_options=qhull_opts)  # ,'QbB'
 
         V = vor.vertices                            # vertices of the voronoi diagram
-        D = vor.regions                             # list of faces of the Voronoi cells
-        D = D[0:X.shape[0]]                         # Cut off the dummy coordinates
+        D = np.array(vor.regions, dtype=np.float32)                             # list of faces of the Voronoi cells
+        print(f"shape D from Vor = {np.shape(D)}")
+        print(f"type D = {type(D)}")
+        cells = D.copy()
+        cells = cells[0:X.shape[0]]                         # Cut off the dummy coordinates
+        print(f"shape cells from cut = {np.shape(cells)}")
+        print(f"cells[:10] = {cells[:10]}")
 
     # now we need some adjacencies and incidences
-    iv = np.hstack(D)                       # nodes incident to cells D
+    iv = np.hstack(cells)                       # nodes incident to cells D
+    print(f"iv = {iv}")
+    print(f"iv[:10] = {iv[:10]}")
+    print(f"shape iv (nodes incident to cells D) = {np.shape(iv)}")
     iid = zeros(len(iv), dtype=np.int64)    # number the cells
+    print(f"shape iid (cell numbers) = {np.shape(iid)}")
 
     # Some MATLAB stuff goin on here... : p = [0; cumsum(cellfun('prodofsize',D))];
-    D_prod = matlab_prod_of_size(D)
+    D_prod = matlab_prod_of_size(cells)
     p = np.hstack([0, np.cumsum(D_prod)-1])
 
     # original matlab: for k=1:numel(D), id(p(k)+1:p(k+1)) = k; end
-    for k in range(len(D)):
+    for k in range(len(cells)):
         iid[p[k]+1 : p[k+1]] = k
 
     # next vertex
@@ -219,6 +229,44 @@ def spatial_decomposition(X, unit_cell=None, boundary='hull', qhull_opts='Q5 Q6 
           
           Could also be causing problems in the Householder matrix initialization.
     '''
+    print(f"shape cells for testing = {np.shape(cells)}")
+    # print(f"cells[:][:] = {cells[:][:]}")
+    my_ind = cells[0][:]
+    print(f"Cell vertices = {V[my_ind]}")
+    cells_x = V[cells[0][:]][:, 0]
+    cells_y = V[cells[0][:]][:, 1]
+    print(f"cells_x = {cells_x}")
+    print(f"cells_y = {cells_y}")
+    print(f"shape cellsx = {np.shape(cells_x)}")
+    print(f"shape cellsy = {np.shape(cells_y)}")
+
+    # fig = plt.figure()
+    # # fig, (ax1, ax2) = plt.subplots(1, 2)
+    # start_time = time.time()
+    # # ax1.plot(faces_x_coords[6:11], faces_y_coords[6:11])
+    # # ax1.set_title(f"Plot")
+    # # ax1.set_xlabel(f"Microns?")
+    # # ax1.set_ylabel(f"Microns?")
+    # # ax2.scatter(faces_x_coords[6:11], faces_y_coords[6:11])
+    # for i in tqdm(range(int(len(cells)/32)), desc="Plotting cells"):
+    #     cells_x = V[cells[i][:]][:, 0]
+    #     cells_y = V[cells[i][:]][:, 1]
+    #     plt.scatter(cells_x, cells_y, s=0.0001)
+    # print(f"cells type = {type(cells)}")
+    # print(f"cells x y type = {type(cells_x)}")
+    # # ax2.set_title(f"Scatter")
+    # # ax2.set_xlabel(f"Microns?")
+    # end_time = time.time()
+    # time_to_plot = end_time - start_time
+    # fig.suptitle(f"Scatter Plot of Face Endpoints ({round(time_to_plot, 3)}s)")
+    # # plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/Line Plot Test.tiff", dpi=4000)
+    # plt.savefig(f"C:/PyRepo/hackathon/Mart2Aust_Hackathon/orix/tests/crystal_map/Scatter Plot Test.tiff", dpi=1200)
+    # plt.show()
+
+    print(f"dummy_coordinates = {dummy_coordinates}")
+
+    # fig, ax = plt.subplots()
+    # ax.scatter(dummy_coordinates)
 
     return V, F, I_FD
 
