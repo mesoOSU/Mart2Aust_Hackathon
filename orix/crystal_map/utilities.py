@@ -30,19 +30,23 @@ import matplotlib.pyplot as plt
 
 def calc_grains(ebsd):
     '''
-    Segment grains in crystalmap
+    Segment grains in a crystalmap
     
 
     Parameters
     ----------
-    ebsd : TYPE
-        DESCRIPTION.
+    ebsd : orix crystalmap class
+        EBSD data containing grains for segmentation
 
     Returns
     -------
-    ebsd : TYPE
-        DESCRIPTION.
-
+    ebsd : orix crystalmap class
+        EBSD data with grain_id added to prop
+    
+    Example Usage
+    -------------
+    xmap2 = calc_grains(xmap)
+    xmap2.plot(prop='grain_id')
     '''
 
     # subdivide the domain into cells according to the measurement locations,
@@ -73,6 +77,44 @@ def calc_grains(ebsd):
 
     #ebsd.prop.grain_id = feature_clusters
     ebsd.prop["grain_id"] = feature_clusters
+    
+    # % setup grains
+    # grains = grain2d(ebsd,V,F,I_DG,I_FD,A_Db);
+    
+    # % calc mean orientations, GOS and mis2mean
+    # % ----------------------------------------
+    
+    # [d,g] = find(I_DG);
+    
+    # grainRange    = [0;cumsum(grains.grainSize)];        %
+    # firstD        = d(grainRange(2:end));
+    # q             = quaternion(ebsd.rotations);
+    # meanRotation  = q(firstD);
+    # GOS = zeros(length(grains),1);
+    
+    # % choose between equivalent orientations in one grain such that all are
+    # % close together
+    # for p = grains.indexedPhasesId
+    #   ndx = ebsd.phaseId(d) == p;
+    #   if ~any(ndx), continue; end
+    #   q(d(ndx)) = project2FundamentalRegion(q(d(ndx)),ebsd.CSList{p},meanRotation(g(ndx)));
+    # end
+    
+    # % compute mean orientation and GOS
+    # doMeanCalc = find(grains.grainSize>1 & grains.isIndexed);
+    # for k = 1:numel(doMeanCalc)
+      
+    #   qind = subSet(q,d(grainRange(doMeanCalc(k))+1:grainRange(doMeanCalc(k)+1)));
+    #   mq = mean(qind,'robust');
+    #   meanRotation = setSubSet(meanRotation,doMeanCalc(k),mq);
+    #   GOS(doMeanCalc(k)) = mean(angle(mq,qind));
+      
+    # end
+    
+    # % save 
+    # grains.prop.GOS = GOS;
+    # grains.prop.meanRotation = reshape(meanRotation,[],1);
+    # mis2mean = inv(rotation(q(:))) .* grains.prop.meanRotation(grainId(:));
 
     return ebsd
 
@@ -82,11 +124,15 @@ def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
     """
     Parameters
     ----------
+    I_FD : scipy sparse matrix faces to vertices
     
     Returns
     --------
-    # A_Db - adjacency matrix of grain boundaries
-    # A_Do - adjacency matrix inside grain connections
+    A_Db : scipy sparse matrix
+        adjacency matrix of grain boundaries
+        
+    A_Do : scipy sparse matrix
+        adjacency matrix inside grain connections
     
     """
 
@@ -102,6 +148,8 @@ def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
     if np.size(gbc_value) == 1 and len(phase_ids) > 1:
         ##   gbcValue = repmat(gbcValue,size(ebsd.CSList))
         threshold = np.repeat(threshold, np.shape(phase_ids))
+    else:
+        threshold = np.atleast_1d(threshold)  
 
     # get pairs of neighbouring cells {D_l,D_r} in A_D
     A_D = I_FD.T * I_FD == 1
@@ -114,7 +162,7 @@ def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
     ## for p = 1:numel(ebsd.phaseMap)
     for p in phase_ids:
 
-        ndx = np.all(np.vstack([ebsd.phase_id[Dl] == p, ebsd.phase_id[Dl] == p]), axis=0)
+        ndx = np.all(np.vstack([ebsd.phase_id[Dl] == p, ebsd.phase_id[Dr] == p]), axis=0)
 
         connect[ndx] = True        
 
@@ -124,7 +172,7 @@ def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
         # now check for the grain boundary criterion
         if np.any(ndx):
 
-            connect[ndx] = gbc_angle(ebsd.rotations, ebsd.phases.point_groups[p-1], Dl[ndx], Dr[ndx], threshold)
+            connect[ndx] = gbc_angle(ebsd.rotations, ebsd.phases.point_groups[p-1], Dl[ndx], Dr[ndx], threshold[ndx])
 
     # adjacency of pixels that are in different grains
     A_Do = csr_matrix((np.ones(np.shape(Dl[connect])), (Dl[connect], Dr[connect])), shape=(ebsd.size, ebsd.size))
@@ -135,6 +183,7 @@ def do_segmentation(I_FD, ebsd, gbc_value=5., maxDist=0):
     mask = np.ones(connect.shape, dtype=bool)
     mask[connect] = False
     A_Db = coo_matrix((np.ones(np.shape(Dl[mask])), (Dl[mask], Dr[mask])), shape=(ebsd.size, ebsd.size));
+    A_Db = A_Db.tocsr()
     rows, cols = A_Db.nonzero()
     A_Db[cols, rows] = A_Db[rows, cols] # Make symmetric
 
@@ -493,7 +542,7 @@ def left_hand_assignment(X, a):
     if a.dtype != 'int32' or 'int64':
         warnings.warn('parameter ''a'' must be of integer type. Converting ''a'' into integers and moving on...')
 
-    a = np.int32(a)
+        a = np.int32(a)
 
     bound_X_init = X
     ncols = X.shape[1]
@@ -516,20 +565,39 @@ def matlabdiff(myArray):
 # ----------------------------------------------------------------------------
 
 def gbc_angle(q1, s1, Dl, Dr, threshold):
-     # still needs **kwargs to enable two misorientation angle choices like MTEX
-     qs = Orientation(q1,s1)
-     qs = qs.map_into_symmetry_reduced_zone
-
-
-     o1 = qs[Dl]
-     o2 = qs[Dr]
-
-     mis = o1*~o2 #angle(orientation(q(Dl),CS),orientation(q(Dr),CS))
-
-     # if np.ndarray.size(threshold) == 1:
-     criterion = mis.angle < threshold
-
-     return criterion
+    '''
+    implements misorientation angle based grain boundary threshold for grain segmentation
+    
+    Parameters
+    ----------
+    q1 : quaternion class for rotations
+    s1 : symmetry class
+    Dl : indices of q1 for adjacent 
+    Dr : indices of q1 for 
+    threshold : angular threshold value in radians
+    
+    Returns
+    -------
+    criterion : bool
+    '''
+    # still needs **kwargs to enable two misorientation angle choices like MTEX
+     
+    qs = Orientation(q1,s1)
+    qs = qs.map_into_symmetry_reduced_zone()
+    
+    
+    o1 = qs[Dl]
+    o2 = qs[Dr]
+    
+    # Original matlab: mis = angle(orientation(q(Dl),CS),orientation(q(Dr),CS))
+    mis = o1-o2
+    #mis = mis.map_into_symmetry_reduced_zone() #TODO: When a misorientation class is created, it should be used here
+    
+    
+    # if np.ndarray.size(threshold) == 1:
+    criterion = mis.angle > threshold #FIXME: mtex uses cos(threshold/2)... why?
+    
+    return criterion
 
 # ----------------------------------------------------------------------------
 
@@ -562,7 +630,7 @@ def translationMatrix(s):
     '''
     Parameters
     ----------
-    v\s : TYPE
+    s : TYPE
         DESCRIPTION.
 
     Returns
@@ -771,9 +839,39 @@ def subSample(xy, N):
     return xy    
         
 def polyArea(x,y):
+    '''
+    calculate polygon area
+
+    Parameters
+    ----------
+    x : numpy array
+        x coordinates of polygon vertices
+    y : numpy array
+        y coordinates of polygon vertices
+
+    Returns
+    -------
+    a : numpy scalar
+        area of polygon defined by (x,y) vertices
+    '''
     return 0.50*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
 
 def isRegularPoly(unitCell):
+    '''
+    
+
+    Parameters
+    ----------
+    unitCell : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    isRegular : TYPE
+        DESCRIPTION.
+
+    '''
+    
     # Compute the side lengths of all the "edges"
     sideLength = np.sqrt(np.sum(np.power(unitCell,2), axis=1))
     sides = sideLength.size
