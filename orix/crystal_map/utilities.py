@@ -5,6 +5,8 @@ Created on Fri Jul 15 09:08:49 2022
 
 @author: paytone
 """
+import random
+
 import numpy as np
 import time
 from tqdm import tqdm
@@ -206,49 +208,133 @@ def spatial_decomposition(X, grid_cell=None, boundary='hull', qhull_opts='Q5 Q6 
     % D   - cell array of Vornoi cells with centers X_D ordered accordingly
     '''
 
-    if grid_cell == None:
+    if grid_cell.all() is None:
         
         unit_cell = calcUnitCell(X)
     
-    if grid_cell != None: # then assume the user is supplying a grid 'unit cell'
+    if grid_cell.all() is not None:  # then assume the user is supplying a grid 'unit cell'
         
         unit_cell = grid_cell
         
         # compute the vertices
-        [V, faces] = generateUnitCells(X, unit_cell)
+        [V, D] = generateUnitCells(X, unit_cell)
         # NOTE: V and faces do not give exact values as compared to the MATLAB
         # implementation. However, Eric and Rohan have confirmed that V and faces
         # at least have the same shape as the MATLAB implementation.
-    
-        list_D = vor.regions                  # list of faces of the Voronoi cells
-        D = [np.array(x) for x in list_D]
-    
-        for k in range(X.shape[0]):
-            D[k] = faces[k, :]
 
-    else:
-        
-        dummy_coordinates = calcBoundary(X, unit_cell, boundary)
-    
-        vor = Voronoi(np.vstack([X, dummy_coordinates]), qhull_options=qhull_opts)  # ,'QbB'
-    
-        V = vor.vertices                            # vertices of the voronoi diagram
-        list_D = vor.regions                        # list of faces of the Voronoi cells
-        D = [np.array(x) for x in list_D]
-    
-    cells = D.copy()
-    cells = cells[0:X.shape[0]]     # Cut off the dummy coordinates
+    # D = np.empty(len(X), dtype=object)
+    #
+    # for k in range(X.shape[0]):
+    #     D[k] = faces[k, :]
+    #
+    # print(f"D = {D}")
+    # print(f"D.shape = {D.shape}")
+    # test_D = faces
+    # print(f"test_D = {test_D}")
+    # print(f"test_D.shape = {test_D.shape}")
+    # calculate the max and min of each dimension in X
+
+    x_max = np.max(X[:, 0])
+    x_min = np.min(X[:, 0])
+    y_max = np.max(X[:, 1])
+    y_min = np.min(X[:, 1])
+
+    dummy_coordinates = calcBoundary(X, unit_cell, boundary)
+
+    vor = Voronoi(np.vstack([X, dummy_coordinates]), qhull_options=qhull_opts)  # ,'QbB'
+
+    V = vor.vertices                            # vertices of the voronoi diagram
+    D = vor.regions                             # list of faces of the Voronoi cells
+    # voronoi_plot_2d(vor)                        # plot the voronoi diagram
+
+    # Get the dummy vertices to remove by use of max and min values
+    remove_x_max = np.where(V[:, 0] > x_max)
+    remove_x_min = np.where(V[:, 0] < x_min)
+    remove_y_max = np.where(V[:, 1] > y_max)
+    remove_y_min = np.where(V[:, 1] < y_min)
+    remove_false_verts = np.hstack((remove_x_max, remove_x_min, remove_y_max, remove_y_min))
+
+    new_cells = []
+
+    # Find the indices of remove_false_vertices contained within any cell of list D to remove
+    for cell in tqdm(D, desc="Parsing cells for dummy vertices"):
+        for vert in cell:
+            if vert in remove_false_verts:
+                print(f"Cell {cell} contains dummy vertex {vert}")
+                cell.remove(vert)
+                print(f"Removed vert {vert} from cell {cell}")
+                print(f"Coordinates of removed vert {V[vert]}")
+                print(f"Is vert in remove_false_verts? {vert in remove_false_verts}")
+        new_cells.append(cell)
+
+    # Remove the dummy vertices from the array of vertices
+    new_V = np.delete(V, remove_false_verts, axis=0)
+    old_V = V
+    V = new_V
+
+    # new_D = []
+    # for i in range(len(D)):
+    #     if len(new_D) == 0:
+    #         new_D = D[i]
+    #     else:
+    #         new_D = np.vstack((new_D, D[i]))
+    #
+    # print(f"D[:5] = {D[:5]}")
+    # print(f"D[0] = {D[0]}")
+    #
+    # print(f"V[D[0]] = {V[D[0]]}")
+
+    c = ['b', 'g', 'r', 'c', 'm', 'y']
+
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    for cell in tqdm(new_cells[:10000], desc="Plotting first 1000 Voronoi cells"):
+        color_ind = random.randint(0, 5)
+        for vert in cell:
+            if old_V[vert][0] > x_max or old_V[vert][0] < x_min or old_V[vert][1] > y_max or old_V[vert][1] < y_min:
+                print(f"Cell {cell} contains dummy vertex {vert} with coordinates {old_V[vert]}")
+                pass
+            ax1.scatter(old_V[vert][0], old_V[vert][1], c=c[color_ind])
+            ax2.scatter(old_V[vert][0], old_V[vert][1], c=c[color_ind])
+    fig.suptitle('First 1000 cells with removing bad vertices')
+    ax1.set_xlabel('Microns')
+    ax1.set_ylabel('Microns')
+    ax1.invert_yaxis()
+    ax1.set_aspect('equal')
+    ax2.set_xlabel('Microns')
+    ax2.set_ylim([-5, 10])
+    ax2.set_xlim([-5, 10])
+    ax2.invert_yaxis()
+    ax2.set_aspect('equal')
+    plt.show()
+
+    # Remove bad vertices from the existing faces without changing the order of the faces
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    for cell in tqdm(D, desc="Plotting Voronoi cells"):
+        color_ind = random.randint(0, 5)
+        ax1.scatter(old_V[cell[:]][0], old_V[cell[:]][1], c=c[color_ind])
+        ax2.scatter(old_V[cell[:]][0], old_V[cell[:]][1], c=c[color_ind])
+    fig.suptitle('Cells with removing bad vertices')
+    ax1.set_xlabel('Microns')
+    ax1.set_ylabel('Microns')
+    ax1.invert_yaxis()
+    ax1.set_aspect('equal')
+    ax2.set_xlabel('Microns')
+    ax2.set_ylim([-5, 10])
+    ax2.set_xlim([-5, 10])
+    ax2.invert_yaxis()
+    ax2.set_aspect('equal')
+    plt.show()
 
     # now we need some adjacencies and incidences
-    iv = np.hstack(cells)                      # nodes incident to cells D
+    iv = np.hstack(D)                      # nodes incident to cells D
     iid = zeros(len(iv), dtype=np.int64)    # number the cells
 
     # Some MATLAB stuff goin on here... : p = [0; cumsum(cellfun('prodofsize',D))];
-    D_prod = matlab_prod_of_size(cells)
+    D_prod = matlab_prod_of_size(D)
     p = np.hstack([0, np.cumsum(D_prod)-1])
 
     # original matlab: for k=1:numel(D), id(p(k)+1:p(k+1)) = k; end
-    for k in range(len(cells)):
+    for k in range(len(D)):
         iid[p[k]+1 : p[k+1]] = k
 
     # next vertex
@@ -279,9 +365,6 @@ def spatial_decomposition(X, grid_cell=None, boundary='hull', qhull_opts='Q5 Q6 
           
           Could also be causing problems in the Householder matrix initialization.
     '''
-    
-    #cells_x = [V[cells[i][:]][:, 0] for i in range(len(cells))]
-    #cells_y = [V[cells[i][:]][:, 1] for i in range(len(cells))]
 
     return V, F, I_FD
 

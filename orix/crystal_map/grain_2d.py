@@ -160,18 +160,18 @@ class grain2d:
 
 
 def main():
-    # X = np.loadtxt(
-    #     'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\spatialDecomposition_input_X.csv',
-    #     delimiter=',', dtype=float)
-    # uc = np.loadtxt(
-    #     'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\calcUnitCell_output_unitCell.csv',
-    #     delimiter=',', dtype=float)
     X = np.loadtxt(
-        'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
-        'spatialDecomposition_input_X.csv', delimiter=',', dtype=float)
+        'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\spatialDecomposition_input_X.csv',
+        delimiter=',', dtype=float)
     uc = np.loadtxt(
-        'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
-        'calcUnitCell_output_unitCell.csv', delimiter=',', dtype=float)
+        'C:\\git\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\calcUnitCell_output_unitCell.csv',
+        delimiter=',', dtype=float)
+    # X = np.loadtxt(
+    #     'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
+    #     'spatialDecomposition_input_X.csv', delimiter=',', dtype=float)
+    # uc = np.loadtxt(
+    #     'C:\\PyRepo\\Hackathon\\Mart2Aust_Hackathon\\spatial_decomposition_test_folder\\'
+    #     'calcUnitCell_output_unitCell.csv', delimiter=',', dtype=float)
     # ebsd_path = "C:\\PyRepo\\measureGrainSize\\GS_Meas\\myEBSD_high_res_1.mat"
     # ebsd = loadmat(ebsd_path)
     # ebsd_x_path = "C:\\PyRepo\\measureGrainSize\\GS_Meas\\myEBSD_high_res_1_x.mat"
@@ -180,51 +180,74 @@ def main():
     # unitCell = unitCell['myUnitCell']
     # ebsd_x = loadmat(ebsd_x_path)  # Import raw ebsd.x from MTEX as .mat file
     # ebsd_y = loadmat(ebsd_y_path)  # Import raw ebsd.y from MTEX as .mat file
-    V, F, I_FD = utilities.spatial_decomposition(X, unit_cell=uc)
+    V, F, I_FD = utilities.spatial_decomposition(X, grid_cell=uc)
 
-    print(f"V = {V}")
-    # print(type(V))
-    print(f"shape V = {np.shape(V)}")
-    print(f"F = {F}")
-    # print(type(F))
-    print(f"shape F = {np.shape(F)}")
-    print(f"I_FD = {I_FD}")
-    # print(type(I_FD))
-    print(f"shape I_FD = {np.shape(I_FD)}")
-    face_one = F[0]
-    print(f"face_one = {face_one}")
-    face_one_vert_one_ind = face_one[0]
-    print(f"face_one_vert_one_ind = {face_one_vert_one_ind}")
-    face_one_vert_one_coords = V[face_one[0]]
-    print(f"face_one_vert_one_coords = {face_one_vert_one_coords}")
-    face_one_vert_two_ind = face_one[1]
-    print(f"face_one_vert_two_ind = {face_one_vert_two_ind}")
-    face_one_vert_two_coords = V[face_one[1]]
-    print(f"face_one_vert_two_coords = {face_one_vert_two_coords}")
+    # print(f"V = {V}")
+    # # print(type(V))
+    # print(f"shape V = {np.shape(V)}")
+    # print(f"F = {F}")
+    # # print(type(F))
+    # print(f"shape F = {np.shape(F)}")
+    # print(f"I_FD = {I_FD}")
+    # # print(type(I_FD))
+    # print(f"shape I_FD = {np.shape(I_FD)}")
+    # face_one = F[0]
+    # print(f"face_one = {face_one}")
+    # face_one_vert_one_ind = face_one[0]
+    # print(f"face_one_vert_one_ind = {face_one_vert_one_ind}")
+    # face_one_vert_one_coords = V[face_one[0]]
+    # print(f"face_one_vert_one_coords = {face_one_vert_one_coords}")
+    # face_one_vert_two_ind = face_one[1]
+    # print(f"face_one_vert_two_ind = {face_one_vert_two_ind}")
+    # face_one_vert_two_coords = V[face_one[1]]
+    # print(f"face_one_vert_two_coords = {face_one_vert_two_coords}")
 
-    face_1_coords = V[F[0]]
-    print(f"face_1_coords = {face_1_coords}")
-    faces = V[F[:]]
-    print(f"faces = {faces}")
-    print(f"shape faces = {np.shape(faces)}")
-    faces_x_coords = faces[:, :, 0]
-    print(f"faces_x_coords = {faces_x_coords}")
-    print(f"shape faces_x_coords = {np.shape(faces_x_coords)}")
-    faces_y_coords = faces[:, :, 1]
-    print(f"faces_y_coords = {faces_y_coords}")
-    print(f"shape faces_y_coords = {np.shape(faces_y_coords)}")
+    # face_1_coords = V[F[0]]
+    # # print(f"face_1_coords = {face_1_coords}")
+    # faces = V[F[:]]
+    # # print(f"faces = {faces}")
+    # # print(f"shape faces = {np.shape(faces)}")
+    # faces_x_coords = faces[:, :, 0]
+    # # print(f"faces_x_coords = {faces_x_coords}")
+    # # print(f"shape faces_x_coords = {np.shape(faces_x_coords)}")
+    # faces_y_coords = faces[:, :, 1]
+    # # print(f"faces_y_coords = {faces_y_coords}")
+    # # print(f"shape faces_y_coords = {np.shape(faces_y_coords)}")
 
-    print(f"face_1_x_coords = {faces_x_coords[0]}")
+    # print(f"face_1_x_coords = {faces_x_coords[0]}")
 
     plt.style.use('dark_background')
     plt.rc('axes', axisbelow=True)
 
-    print(f"nonzero_count = {I_FD.count_nonzero()}")
-    print(f"indices of non zero elements = {I_FD.nonzero()}")
-    print(f"myFirst5Incidences = {I_FD[:5]}")
-    print(f"myshape = {np.shape(I_FD)}")
-    print(f"My raw points = {V[F[:15]]}")
-    print(f"My points = {faces[:6]}")
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    ax1.plot(V[:, 0], V[:, 1], '.')
+    ax2.scatter(V[:, 0], V[:, 1])
+    # lable x and y axes
+    ax1.set_xlabel('Microns')
+    ax1.set_ylabel('Microns')
+    ax2.set_xlabel('Microns')
+    # ax2.set_ylabel('Microns')
+    # set the title
+    fig.suptitle('Voronoi Diagram')
+    ax1.invert_yaxis()
+    ax1.set_aspect('equal')
+    # limit x and y axes to 5 microns
+    ax2.set_xlim([-1, 5])
+    ax2.set_ylim([-1, 5])
+    ax2.set_aspect('equal')
+    ax2.invert_yaxis()
+    plt.tight_layout()
+    # save the figure
+    # fig.savefig('C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/voronoi_diagram.svg')
+    # show the plot
+    plt.show()
+
+    # print(f"nonzero_count = {I_FD.count_nonzero()}")
+    # print(f"indices of non zero elements = {I_FD.nonzero()}")
+    # print(f"myFirst5Incidences = {I_FD[:5]}")
+    # print(f"myshape = {np.shape(I_FD)}")
+    # print(f"My raw points = {V[F[:15]]}")
+    # print(f"My points = {faces[:6]}")
 
     # fig, (ax1, ax2) = plt.subplots(1, 2)
     # start_time = time.time()
@@ -243,10 +266,10 @@ def main():
     # plt.show()
 
     # start_time = time.time()
-    # plt.figure()
-    # plt.scatter(V[:, 0], V[:, 1], c='red', s=0.01)
-    # plt.ylabel(r'microns?, $[/micron/m]$', fontsize=18)
-    # plt.xlabel('microns', fontsize=18)
+    plt.figure()
+    plt.scatter(V[:, 0], V[:, 1], c='red', s=0.01)
+    plt.ylabel(r'microns?, $[/micron/m]$', fontsize=18)
+    plt.xlabel('microns', fontsize=18)
     # # plt.ylim([0,100])
     # # plt.yticks(fontsize=16, rotation=0)
     # # plt.xticks(fontsize=16, rotation=0)
@@ -256,7 +279,7 @@ def main():
     # # plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/test1.tiff", dpi=4000)
     # plt.savefig(f"C:/PyRepo/Hackathon/Mart2Aust_Hackathon/orix/tests/crystal_map/test1.tiff", dpi=4000)
     # end_time = time.time()
-    # plt.show()
+    plt.show()
     # # print(f"Time to plot vertices = {end_time - start_time}")
     #
     #
@@ -277,45 +300,6 @@ def main():
     # plt.show()
     # # print(f"Time to plot faces = {end_time - start_time}")
 
-    # # Testing
-    # G = nx.Graph()  # Create an empty graph with no nodes and no edges.
-    # # node_number = np.arange(start=0, stop=(len(V)))
-    # node_coords =
-    # # node = np.arange(start=0, stop=(len(V))/100)
-    # node = [1, 2, 3]
-    # F = [[1, 2], [2, 3], [3, 1]]
-    # G.add_nodes_from(node)
-    # nx.set_node_attributes(G, verts, 'coord')
-    # G.add_edges_from(F)
-    # # print(f"g.number_of_nodes() = {G.number_of_nodes()}")
-    # # print(f"g.number_of_edges() = {G.number_of_edges()}")
-    # nx.draw(G, node_size=10, node_color='red')
-    # plt.show()
-
-    # # Protype
-    # node_number = np.arange(start=0, stop=len(V))
-    # G = nx.Graph()  # Create an empty graph with no nodes and no edges.
-    # end_ind = int(len(V)/8)
-    # for node in tqdm(node_number[0:end_ind], desc="Plotting nodes"):
-    #     G.add_node(node)
-    # # G.add_edges_from(F)
-    # # incidence_cell_face = I_FD[0]
-    # # print(len(incidence_cell_face[0]))
-    # # for node in V[0:1000]:
-    # #     G.add_nodes_from(node, c='red', s=0.001)
-    # # G.add_edges_from(F[0:1000], c='blue', s=0.001)
-    # # print(f"g.number_of_nodes() = {G.number_of_nodes()}")
-    # # print(f"g.number_of_edges() = {G.number_of_edges()}")
-    # print(f"Added {end_ind} nodes!")
-    # nx.draw(G)
-    # print(f"Drawing done")
-    # plt.savefig(f"C:/git/Mart2Aust_Hackathon/orix/tests/crystal_map/test4.tiff", dpi=1000)
-    # print(f"Saving done")
-    # plt.show()
-
-    # node_number = np.arange(start=0, stop=len(V))
-    # node_vertices = V
-    #
     # start_time = time.time()
     # plt.figure()
     # fig, ax = plt.subplots()
